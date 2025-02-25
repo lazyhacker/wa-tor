@@ -4,21 +4,39 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"image"
 	"log"
+	"math/rand"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
+const (
+	TileSize  = 32 // pixels width/height per tile
+	MapWidth  = 32 // number of tiles horizontally
+	MapHeight = 24 // number of tiles vertically
+)
+
+var (
+	startFish   = flag.Int("fish", 700, "Initial # of fish.")
+	startSharks = flag.Int("sharks", 68, "Initial # of sharks.")
+	birthFish   = flag.Int("fbreed", 25, "# of cycles for fish to reproduce.")
+	birthShark  = flag.Int("sbreed", 35, "# of cycles for shark to reproduce.")
+	starve      = flag.Int("starve", 50, "# of cycles shark can go with feeding before dying.")
+)
+
 type Creature struct {
-	image *ebiten.Image
-	X, Y  float64
+	image         *ebiten.Image
+	height, width uint
 }
 
 type Shark struct {
 	velocity uint
-	hunger   uint
+	health   uint
 	Creature
 }
 
@@ -26,11 +44,111 @@ type Fish struct {
 	Creature
 }
 
+type Tile interface {
+	Image() *ebiten.Image
+}
+
+func (f Fish) Image() *ebiten.Image {
+
+	return f.image
+}
+
+func (s Shark) Image() *ebiten.Image {
+
+	return s.image
+}
+
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
 // interface.
 type Game struct {
-	fishes []Fish
-	sharks []Shark
+	fishes  []Fish
+	sharks  []Shark
+	tileMap []Tile // Game map is a NxM but represented linearly.
+}
+
+func (g *Game) Init(numfish, numshark, width, height int) {
+
+	fmt.Printf("%d %d %d %d\n", numfish, numshark, width, height)
+	if numfish+numshark > width*height {
+		log.Fatalf("Too many creatures to fit on map!")
+	}
+
+	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
+	if err != nil {
+		log.Fatalln("Unable to load shark image.")
+	}
+	shark := ss.SubImage(image.Rect(0, 0, 32, 32)).(*ebiten.Image)
+
+	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
+	if err != nil {
+		log.Fatalln("Unable to load fish image.")
+	}
+	fish := fs.SubImage(image.Rect(0, 0, 32, 16)).(*ebiten.Image)
+
+	mapSize := width * height
+
+	// Have a sequence of numbers from 0 to mapSize correspond to
+	// locations on the tileMap that isn't occupied.
+	sequence := make([]uint, mapSize)
+	for i := 0; i < mapSize; i++ {
+		sequence[i] = uint(i)
+	}
+	// Shuffle the sequence
+	rand.Shuffle(len(sequence), func(i, j int) {
+		sequence[i], sequence[j] = sequence[j], sequence[i]
+	})
+
+	g.tileMap = make([]Tile, mapSize)
+	g.fishes = make([]Fish, numfish)
+	g.sharks = make([]Shark, numshark)
+
+	rand.Seed(time.Now().UnixNano())
+
+	// seed the fishes
+	for i := 0; i < len(g.fishes); i++ {
+
+		if len(sequence) == 0 {
+			log.Println("No more tiles left on map to place fish.")
+			break
+		}
+
+		g.fishes[i] = Fish{
+			Creature{
+				image:  fish,
+				height: 16,
+				width:  32,
+			},
+		}
+
+		t := sequence[0]        // get the tile number
+		sequence = sequence[1:] // remove the tile number since it's been taken
+
+		g.tileMap[t] = g.fishes[i]
+	}
+
+	// seed the fishes
+	for i := 0; i < len(g.sharks); i++ {
+
+		if len(sequence) == 0 {
+			log.Println("No more tiles left on map to place sharks.")
+			break
+		}
+
+		g.sharks[i] = Shark{
+			2,
+			uint(*starve),
+			Creature{
+				image:  shark,
+				height: 32,
+				width:  32,
+			},
+		}
+
+		t := sequence[0]        // get the tile number
+		sequence = sequence[1:] // remove the tile number since it's been taken
+
+		g.tileMap[t] = g.sharks[i]
+	}
 }
 
 // Update is called by Ebiten every 'tick' based on Ticks Per Seconds (TPS).
@@ -47,18 +165,13 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	opts := &ebiten.DrawImageOptions{}
 
-	for _, s := range g.sharks {
-		opts.GeoM.Reset()
-		opts.GeoM.Translate(s.X, s.Y)
-		screen.DrawImage(s.image, opts)
+	for i, c := range g.tileMap {
+		if c != nil {
+			opts.GeoM.Reset()
+			opts.GeoM.Translate(TileCoordinate(i))
+			screen.DrawImage(c.Image(), opts)
+		}
 	}
-
-	for _, f := range g.fishes {
-		opts.GeoM.Reset()
-		opts.GeoM.Translate(f.X, f.Y)
-		screen.DrawImage(f.image, opts)
-	}
-
 }
 
 // Layout is the logical screen size which can be different from the actual
@@ -67,64 +180,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // will scale the images so that it fits into the window.  This is also useful
 // when the window can be resized but the game's logical screen size stays
 // constant.
+// Ebiten will fit the logical screen to fit in the window.  If the logical
+// screen is small then the window, the images are scaled up.  If the logical
+// screen is larger, the images are scaled down.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 640, 480
+	return TileSize * MapWidth, TileSize * MapHeight
 }
 
 func main() {
-	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(TileSize*MapWidth, TileSize*MapHeight)
 	ebiten.SetWindowTitle("Wa-Tor")
 
-	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
-	if err != nil {
-		log.Fatalln("Unable to load shark image.")
-	}
-	shark := ss.SubImage(image.Rect(0, 0, 32, 32)).(*ebiten.Image)
-
-	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
-	if err != nil {
-		log.Fatalln("Unable to load fish image.")
-	}
-	fish := fs.SubImage(image.Rect(0, 0, 32, 16)).(*ebiten.Image)
-
-	wator := &Game{
-		fishes: []Fish{
-			Fish{
-				Creature{
-					image: fish,
-					X:     10,
-					Y:     20,
-				},
-			},
-			Fish{
-				Creature{
-					image: fish,
-					X:     50,
-					Y:     70,
-				},
-			},
-			Fish{
-				Creature{
-					image: fish,
-					X:     150,
-					Y:     70,
-				},
-			},
-		},
-		sharks: []Shark{
-			Shark{
-				1,
-				10,
-				Creature{
-					image: shark,
-					X:     100,
-					Y:     200,
-				},
-			},
-		},
-	}
+	wator := &Game{}
+	wator.Init(*startFish, *startSharks, MapWidth, MapHeight)
 
 	if err := ebiten.RunGame(wator); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func TileCoordinate(idx int) (float64, float64) {
+
+	row := (idx / MapWidth) * TileSize
+	col := (idx % MapWidth) * TileSize
+
+	return float64(col), float64(row)
 }
