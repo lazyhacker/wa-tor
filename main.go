@@ -5,7 +5,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"log"
 	"math/rand"
@@ -68,7 +67,6 @@ type Game struct {
 
 func (g *Game) Init(numfish, numshark, width, height int) {
 
-	fmt.Printf("%d %d %d %d\n", numfish, numshark, width, height)
 	if numfish+numshark > width*height {
 		log.Fatalf("Too many creatures to fit on map!")
 	}
@@ -108,7 +106,7 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	for i := 0; i < len(g.fishes); i++ {
 
 		if len(sequence) == 0 {
-			log.Println("No more tiles left on map to place fish.")
+			log.Println("No more tiles left on map to place FISH.")
 			break
 		}
 
@@ -126,11 +124,11 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 		g.tileMap[t] = g.fishes[i]
 	}
 
-	// seed the fishes
+	// seed the sharks
 	for i := 0; i < len(g.sharks); i++ {
 
 		if len(sequence) == 0 {
-			log.Println("No more tiles left on map to place sharks.")
+			log.Println("No more tiles left on map to place SHARK.")
 			break
 		}
 
