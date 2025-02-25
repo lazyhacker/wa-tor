@@ -5,6 +5,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"log"
 	"math/rand"
@@ -201,6 +202,17 @@ func TileCoordinate(idx int) (float64, float64) {
 // By default, Ebiten tries to run at 60 TPS so Update will be called every
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
 func (g *Game) Update() error {
+
+	for _, c := range g.creatureMap {
+
+		switch c.(type) {
+		case *Fish:
+			fmt.Println("It's a fish!")
+		case *Shark:
+			fmt.Println("It's a shark!")
+		}
+	}
+
 	return nil
 }
 
