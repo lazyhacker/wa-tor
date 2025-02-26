@@ -5,10 +5,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"log"
 	"math/rand"
+	"slices"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -17,13 +17,13 @@ import (
 
 const (
 	TileSize  = 32 // pixels width/height per tile
-	MapWidth  = 32 // number of tiles horizontally
-	MapHeight = 24 // number of tiles vertically
+	MapWidth  = 8  // number of tiles horizontally
+	MapHeight = 6  // number of tiles vertically
 )
 
 var (
-	startFish   = flag.Int("fish", 50, "Initial # of fish.")
-	startSharks = flag.Int("sharks", 15, "Initial # of sharks.")
+	startFish   = flag.Int("fish", 5, "Initial # of fish.")
+	startSharks = flag.Int("sharks", 5, "Initial # of sharks.")
 	fsr         = flag.Int("fish-spawn-rate", 25, "fish spawn rate")
 	ssr         = flag.Int("shark-spawn-rate", 35, "shark spawn rate")
 	health      = flag.Int("health", 50, "# of cycles shark can go with feeding before dying.")
@@ -42,7 +42,6 @@ type Creature struct {
 }
 
 func (c Creature) Image() *ebiten.Image {
-
 	return c.image
 }
 
@@ -93,6 +92,7 @@ type Game struct {
 	sharks      []*Shark
 	tileMap     []Tile // Game map is a NxM but represented linearly.
 	creatureMap []CreatureMap
+	Chrono      int
 }
 
 // Set up the initial tileMap and randomly seed it with sharks and fish.
@@ -196,23 +196,85 @@ func TileCoordinate(idx int) (float64, float64) {
 	return float64(col), float64(row)
 }
 
+// Adjacent returns up, down, left, right tile locations from the position.
+func Adjacent(pos int) []int {
+
+	totalTiles := MapWidth * MapHeight
+	up := pos - MapWidth
+	down := pos + MapWidth
+	left := pos - 1
+	right := pos + 1
+
+	// Check if needs to loop around to the bottom of the map.
+	if up < 0 {
+		up += totalTiles
+	}
+
+	// Check to see if needs to loop around to the top of the map.
+	if down >= totalTiles {
+		down -= totalTiles
+	}
+
+	// Check if it needs to go to wrap around to the end of the row.
+	if (right % MapWidth) == 0 {
+		right -= MapWidth
+	}
+
+	// Check if it needs to wrap around to the start of the row.
+	if (left % MapWidth) < 0 {
+		left += MapWidth
+	}
+
+	/*
+		if up == totalTiles || down == totalTiles || left == totalTiles || right == totalTiles {
+
+			log.Fatalf("(%d) pos = %d.  %d %d %d %d\n", totalTiles, pos, up, down, left, right)
+		}
+	*/
+	return []int{up, down, left, right}
+}
+
+func PickPosition(numbers []int) int {
+
+	rand.Seed(time.Now().UnixNano())
+
+	return numbers[rand.Intn(len(numbers))]
+
+}
+
 /* ------------------- Ebiten ------------------- */
 
 // Update is called by Ebiten every 'tick' based on Ticks Per Seconds (TPS).
 // By default, Ebiten tries to run at 60 TPS so Update will be called every
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
 func (g *Game) Update() error {
-
-	for _, c := range g.creatureMap {
-
+	for pos, c := range g.creatureMap {
+		adjacent := Adjacent(pos)
 		switch c.(type) {
 		case *Fish:
-			fmt.Println("It's a fish!")
+			// Remove any adjacent tiles that is occupied.
+			for i := 0; i < len(adjacent); i++ {
+				if g.creatureMap[adjacent[i]] != nil {
+					slices.Delete(adjacent, i, i+1)
+				}
+			}
+			newPos := PickPosition(adjacent)
+			g.creatureMap[newPos], g.creatureMap[pos] = g.creatureMap[pos], g.creatureMap[newPos]
+
 		case *Shark:
-			fmt.Println("It's a shark!")
+
+			// Remove any adjacent tiles that is occupied by another shark
+			for i := 0; i < len(adjacent); i++ {
+				if _, ok := g.creatureMap[adjacent[i]].(*Shark); ok {
+					slices.Delete(adjacent, i, i+1)
+				}
+			}
+			newPos := PickPosition(adjacent)
+			g.creatureMap[newPos], g.creatureMap[pos] = g.creatureMap[pos], g.creatureMap[newPos]
 		}
 	}
 
+	g.Chrono++
 	return nil
 }
 
@@ -221,6 +283,7 @@ func (g *Game) Update() error {
 // Ebiten will call Draw 60 times per second.  When a display has a 120Hz
 // refresh rate, Draw will be called twice as often as Update.
 func (g *Game) Draw(screen *ebiten.Image) {
+	//screen.Fill(color.RGBA{120, 180, 255, 255})
 	opts := &ebiten.DrawImageOptions{}
 
 	// Draw each of the map tiles with the sprite of the creature (fish/shark).
@@ -248,7 +311,8 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func main() {
-	ebiten.SetWindowSize(TileSize*MapWidth, TileSize*MapHeight)
+	ebiten.SetWindowSize(640, 480)
+	//ebiten.SetWindowSize(TileSize*MapWidth, TileSize*MapHeight)
 	ebiten.SetWindowTitle("Wa-Tor")
 
 	wator := &Game{}
