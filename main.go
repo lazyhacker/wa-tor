@@ -59,12 +59,6 @@ func (c *Creature) Age() int {
 	return c.age
 }
 
-func (c *Creature) Spawn() bool {
-
-	return false
-
-}
-
 // ----------- Sharks -------------------
 type Shark struct {
 	health int
@@ -135,8 +129,6 @@ type MapItem interface {
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
 // interface.
 type Game struct {
-	//fishes  map[int]*Fish
-	//sharks  map[int]*Shark
 	tileMap []MapItem // Game map is a NxM but represented linearly.
 	Chronon int
 }
@@ -174,8 +166,6 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	sequence.Init(mapSize)
 
 	g.tileMap = make([]MapItem, mapSize)
-	//g.fishes = make(map[int]*Fish, *startFish)
-	//g.sharks = make(map[int]*Shark, *startSharks)
 
 	// seed fishes on the tile map.
 	for i := 0; i < *startFish; i++ {
@@ -291,12 +281,12 @@ func PickPosition(curr int, numbers []int) int {
 // By default, Ebiten tries to run at 60 TPS so Update will be called every
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
 func (g *Game) Update() error {
-	/*
-		if g.Chronon%20 != 0 {
-			g.Chronon++
-			return nil
-		}
-	*/
+
+	//if g.Chronon%20 != 0 {
+	//		g.Chronon++
+	//		return nil
+	//}
+
 	for i, tile := range g.tileMap {
 		if tile == nil {
 			continue
