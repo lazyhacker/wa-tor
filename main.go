@@ -5,11 +5,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"image/color"
 	"log"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -18,16 +18,16 @@ import (
 
 const (
 	TileSize  = 32 // pixels width/height per tile
-	MapWidth  = 10 // number of tiles horizontally
-	MapHeight = 4  // number of tiles vertically
+	MapWidth  = 32 // number of tiles horizontally
+	MapHeight = 24 // number of tiles vertically
 )
 
 var (
-	startFish   = flag.Int("fish", 10, "Initial # of fish.")
-	startSharks = flag.Int("sharks", 4, "Initial # of sharks.")
-	fsr         = flag.Int("fish-spawn-rate", 25, "fish spawn rate")
-	ssr         = flag.Int("shark-spawn-rate", 35, "shark spawn rate")
-	health      = flag.Int("health", 10, "# of cycles shark can go with feeding before dying.")
+	startFish   = flag.Int("fish", 80, "Initial # of fish.")
+	startSharks = flag.Int("sharks", 40, "Initial # of sharks.")
+	fsr         = flag.Int("fish-spawn-rate", 35, "fish spawn rate")
+	ssr         = flag.Int("shark-spawn-rate", 45, "shark spawn rate")
+	health      = flag.Int("health", 45, "# of cycles shark can go with feeding before dying.")
 	shark       *ebiten.Image
 	fish        *ebiten.Image
 )
@@ -51,6 +51,20 @@ type Creature struct {
 	age           int
 }
 
+func (c *Creature) SetAge(a int) {
+	c.age = a
+}
+
+func (c *Creature) Age() int {
+	return c.age
+}
+
+func (c *Creature) Spawn() bool {
+
+	return false
+
+}
+
 // ----------- Sharks -------------------
 type Shark struct {
 	health int
@@ -68,6 +82,19 @@ func NewShark() *Shark {
 	}
 }
 
+func (s *Shark) Spawn() bool {
+
+	if s.age%*ssr == 0 && s.age > 0 {
+		return true
+	}
+	return false
+}
+
+func (s *Shark) New() MapItem {
+
+	return NewShark()
+}
+
 // ----------- Fish -------------------
 type Fish struct {
 	Creature
@@ -83,13 +110,34 @@ func NewFish() *Fish {
 	}
 }
 
+func (f *Fish) Spawn() bool {
+
+	if f.age%*fsr == 0 && f.age > 0 {
+		return true
+	}
+	return false
+}
+
+func (f *Fish) New() MapItem {
+
+	return NewFish()
+}
+
+// MapItem holds an tile item: FISH, SHARK or NONE
+type MapItem interface {
+	Age() int
+	SetAge(int)
+	Spawn() bool
+	New() MapItem
+}
+
 // ----------- Game  -------------------
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
 // interface.
 type Game struct {
-	fishes  map[int]*Fish
-	sharks  map[int]*Shark
-	tileMap []Tile // Game map is a NxM but represented linearly.
+	//fishes  map[int]*Fish
+	//sharks  map[int]*Shark
+	tileMap []MapItem // Game map is a NxM but represented linearly.
 	Chronon int
 }
 
@@ -99,6 +147,10 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 
 	if numfish+numshark > width*height {
 		log.Fatalf("Too many creatures to fit on map!")
+	}
+
+	if *health > *ssr {
+		log.Fatalf("shark spawn rate is faster then health rate so shark will always spawn befor hunger.")
 	}
 
 	// Set up the sprites.
@@ -121,9 +173,9 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	sequence := Sequence{}
 	sequence.Init(mapSize)
 
-	g.tileMap = make([]Tile, mapSize)
-	g.fishes = make(map[int]*Fish, *startFish)
-	g.sharks = make(map[int]*Shark, *startSharks)
+	g.tileMap = make([]MapItem, mapSize)
+	//g.fishes = make(map[int]*Fish, *startFish)
+	//g.sharks = make(map[int]*Shark, *startSharks)
 
 	// seed fishes on the tile map.
 	for i := 0; i < *startFish; i++ {
@@ -134,13 +186,11 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 		}
 
 		p := sequence.Next()
-		g.fishes[p] = NewFish()
-		g.tileMap[p].image = g.fishes[p].image
-		g.tileMap[p].tileType = TILE_FISH
+		g.tileMap[p] = NewFish()
 	}
 
 	// seed the sharks on the tile map.
-	for i := *startFish; i < *startSharks+*startFish; i++ {
+	for i := 0; i < *startSharks; i++ {
 
 		if sequence.Length() == 0 {
 			log.Println("No more tiles left on map to place SHARK.")
@@ -148,9 +198,7 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 		}
 
 		p := sequence.Next()
-		g.sharks[p] = NewShark()
-		g.tileMap[p].image = g.sharks[p].image
-		g.tileMap[p].tileType = TILE_SHARK
+		g.tileMap[p] = NewShark()
 	}
 }
 
@@ -228,8 +276,11 @@ func Adjacent(pos int) []int {
 }
 
 // PickPosition randomly picks the element from the given slice.
-func PickPosition(numbers []int) int {
+func PickPosition(curr int, numbers []int) int {
 
+	if len(numbers) == 0 {
+		return curr
+	}
 	rand.Seed(time.Now().UnixNano())
 	return numbers[rand.Intn(len(numbers))]
 }
@@ -246,66 +297,58 @@ func (g *Game) Update() error {
 			return nil
 		}
 	*/
-	for i, _ := range g.fishes {
-		//g.fishes[i].age++
+	for i, tile := range g.tileMap {
+		if tile == nil {
+			continue
+		}
+		// Handle movement and creature-specific behaviors.
 		adjacent := Adjacent(i)
-		var openTile []int
-		for j := 0; j < len(adjacent); j++ {
-			if g.tileMap[adjacent[j]].tileType == TILE_NONE {
-				openTile = append(openTile, adjacent[j])
+		var openTiles []int
+		var newPos int
+		switch c := tile.(type) {
+		case *Fish:
+			// Fish can only move to non-occupied squares.
+			for j := 0; j < len(adjacent); j++ {
+				if g.tileMap[adjacent[j]] == nil {
+					openTiles = append(openTiles, adjacent[j])
+				}
 			}
-		}
-		if len(openTile) == 0 {
-			continue
-		}
-		//currPos := g.fishes[i].position
-		newPos := PickPosition(openTile)
-		g.fishes[newPos] = g.fishes[i]
-		delete(g.fishes, i)
-		g.tileMap[newPos], g.tileMap[i] = g.tileMap[i], g.tileMap[newPos]
-		/*
-			if g.fishes[i].age%*fsr == 0 {
-				g.fishes[currPos] = NewFish(currPos)
-				g.tileMap[currPos].image = g.fishes[i].image
-				g.tileMap[currPos].tileType = TILE_FISH
-			}
-		*/
-	}
 
-	log.Printf("# of sharks: %d", len(g.sharks))
-	for i, _ := range g.sharks {
-		g.sharks[i].health--
-		if g.sharks[i].health == 0 {
-			fmt.Println("Shark died from hunger.")
-			delete(g.sharks, i)
-			log.Printf("Tile %d set to none.\n", i)
-			g.tileMap[i].tileType = TILE_NONE
-			g.tileMap[i].image = nil
-			continue
-		}
-		adjacent := Adjacent(i)
-		var openTile []int
-		for j := 0; j < len(adjacent); j++ {
-			if g.tileMap[adjacent[j]].tileType != TILE_SHARK {
-				openTile = append(openTile, adjacent[j])
+			newPos = PickPosition(i, openTiles)
+		case *Shark:
+
+			// If shark doesn't eat, it dies.
+			(*c).health--
+			if (*c).health == 0 {
+				g.tileMap[i] = nil
+				continue
+			}
+
+			// Shark cannot move to tiles that have other sharks
+			for j := 0; j < len(adjacent); j++ {
+				if v, ok := g.tileMap[adjacent[j]].(*Shark); !ok || v == nil {
+					openTiles = append(openTiles, adjacent[j])
+				}
+			}
+
+			newPos = PickPosition(i, openTiles)
+			if _, ok := g.tileMap[newPos].(*Fish); ok {
+				(*c).health = *health + 1
+				g.tileMap[newPos] = nil
 			}
 		}
-		if len(openTile) == 0 {
-			continue
-		}
-		newPos := PickPosition(openTile)
-		//currPos := g.sharks[i].position
-		if g.tileMap[newPos].tileType == TILE_FISH {
-			log.Println("Shark able to eath a fish!")
-			g.sharks[i].health = 11
-			g.tileMap[newPos].tileType = TILE_NONE
-			g.tileMap[newPos].image = nil
-			delete(g.fishes, newPos)
-		}
-		g.sharks[newPos] = g.sharks[i]
-		delete(g.sharks, i)
 
-		g.tileMap[newPos], g.tileMap[i] = g.tileMap[i], g.tileMap[newPos]
+		if newPos != i {
+
+			g.tileMap[newPos], g.tileMap[i] = g.tileMap[i], g.tileMap[newPos]
+			if tile.Spawn() {
+				g.tileMap[i] = tile.New()
+			}
+
+		}
+
+		tile.SetAge(tile.Age() + 1)
+
 	}
 	g.Chronon++
 	return nil
@@ -323,11 +366,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for i, t := range g.tileMap {
 		opts.GeoM.Reset()
 		opts.GeoM.Translate(TileCoordinate(i))
-		if t.tileType != TILE_NONE {
-			screen.DrawImage(t.image, opts)
+		switch v := t.(type) {
+		case *Fish:
+			screen.DrawImage(v.image, opts)
+		case *Shark:
+			screen.DrawImage(v.image, opts)
 		}
 	}
-	fmt.Println(g.tileMap)
+	ebitenutil.DebugPrint(screen, strconv.Itoa(g.Chronon))
+
 }
 
 // Layout is the logical screen size which can be different from the actual
@@ -344,8 +391,8 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func main() {
-	ebiten.SetWindowSize(640, 480)
-	//ebiten.SetWindowSize(TileSize*MapWidth, TileSize*MapHeight)
+	//ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(TileSize*MapWidth, TileSize*MapHeight)
 	ebiten.SetWindowTitle("Wa-Tor")
 
 	wator := &Game{}
