@@ -2,67 +2,67 @@ package wator
 
 var sharkID int
 
-type Creature struct {
-	age      int
-	lastMove uint
+type creature struct {
+	chronon int
+	turn    uint
 }
 
-func (c *Creature) SetAge(a int) {
-	c.age = a
+func (c *creature) setAge(a int) {
+	c.chronon = a
 }
 
-func (c *Creature) Age() int {
-	return c.age
+func (c *creature) age() int {
+	return c.chronon
 }
 
-func (c *Creature) LastMove() uint {
-	return c.lastMove
+func (c *creature) lastMove() uint {
+	return c.turn
 }
 
-func (c *Creature) SetLastMove(t uint) {
+func (c *creature) setLastMove(t uint) {
 
-	c.lastMove = t
+	c.turn = t
 }
 
 // ----------- Sharks -------------------
-type Shark struct {
+type shark struct {
 	health int
-	Creature
+	creature
 	id int
 }
 
-func NewShark() *Shark {
+func NewShark() *shark {
 	id := sharkID
 	sharkID++
-	return &Shark{
+	return &shark{
 		sharkHealth,
-		Creature{},
+		creature{},
 		id,
 	}
 }
 
-func (s *Shark) Spawn() bool {
+func (s *shark) spawn() bool {
 
-	if s.age%sharkSpawnRate == 0 && s.age > 0 {
+	if s.chronon%sharkSpawnRate == 0 && s.chronon > 0 {
 		return true
 	}
 	return false
 }
 
-// ----------- Fish -------------------
-type Fish struct {
-	Creature
+// ----------- fish -------------------
+type fish struct {
+	creature
 }
 
-func NewFish() *Fish {
-	return &Fish{
-		Creature{},
+func NewFish() *fish {
+	return &fish{
+		creature{},
 	}
 }
 
-func (f *Fish) Spawn() bool {
+func (f *fish) spawn() bool {
 
-	if f.age%fishSpawnRate == 0 && f.age > 0 {
+	if f.chronon%fishSpawnRate == 0 && f.chronon > 0 {
 		return true
 	}
 	return false

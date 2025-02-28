@@ -59,7 +59,9 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	g.fishSprite = fs.SubImage(image.Rect(0, 0, 32, 16)).(*ebiten.Image)
 
 	g.world = wator.Wator{}
-	g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health)
+	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
+		log.Fatalf(err.Error())
+	}
 	g.tileMap = g.world.Update()
 }
 
