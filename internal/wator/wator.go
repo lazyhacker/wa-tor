@@ -165,12 +165,17 @@ func (w *Wator) Update() []int {
 
 			// Shark cannot move to tiles that have other sharks
 			for j := 0; j < len(adjacents); j++ {
-				if v, ok := w.world[adjacents[j]].(*shark); !ok || v == nil {
+				switch w.world[adjacents[j]].(type) {
+				case *fish:
+					// If there is a fish, go to that position.
+					openTiles = nil
+					openTiles = append(openTiles, adjacents[j])
+					continue
+				case nil:
 					openTiles = append(openTiles, adjacents[j])
 				}
 			}
 
-			// TODO: instead of randomoly moving, prioritize space with fish
 			newPos = w.pickPosition(i, openTiles)
 			if _, ok := w.world[newPos].(*fish); ok {
 				(*c).health = sharkHealth + 1

@@ -24,7 +24,6 @@ func (c *creature) setLastMove(t uint) {
 	c.turn = t
 }
 
-// ----------- Sharks -------------------
 type shark struct {
 	health int
 	creature
@@ -49,7 +48,6 @@ func (s *shark) spawn() bool {
 	return false
 }
 
-// ----------- fish -------------------
 type fish struct {
 	creature
 }

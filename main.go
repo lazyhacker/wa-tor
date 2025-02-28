@@ -35,10 +35,9 @@ var (
 // interface.
 type Game struct {
 	world       wator.Wator
-	tileMap     wator.WorldState
+	tileMap     wator.WorldState // Used by Draw to draw sprites to the screen.
 	sharkSprite *ebiten.Image
 	fishSprite  *ebiten.Image
-	gameTime    int
 }
 
 // Set up the initial tileMap and randomly seed it with sharks and fish.
