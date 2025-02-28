@@ -1,5 +1,12 @@
-// wa-tor is an implementation of the wa-tor simulation a.k. dewdney presented
+// Package wator is an implementation of the wa-tor simulation a.k. dewdney presented
 // in scientific america in 1984.
+//
+// # Usage:
+//
+//	world := wator.Wator{}
+//	world.Init(...)
+//
+//	world.Update()
 package wator
 
 import (
@@ -11,9 +18,13 @@ import (
 
 const (
 	NONE  = iota // no creature at the position
-	FISH         // a wator.Fish
-	SHARK        // a wator.Shark
+	FISH         // Represents a fish in Wator.
+	SHARK        // Represents a shark in Wator.
 )
+
+// WorldState contains the positions of every fish and shark on the map.
+// The index is the position and the value is NONE, FISH, or SHARK.
+type WorldState []int
 
 var (
 	fishSpawnRate  int
@@ -33,13 +44,6 @@ type worldItem interface {
 
 // Wator represents the world of Wa-tor, a toroidal (donut-shaped) sea planet
 // consisting of fish and sharks.
-//
-// Example usage:
-//
-//	world := wator.Wator{}
-//	world.Init(...)
-//
-//	world.Update()
 type Wator struct {
 	world          []worldItem // Game map is a NxM but represented linearly.
 	Width, Height  int         // Dimension of the world.
@@ -186,9 +190,12 @@ func (w *Wator) Update() []int {
 		tile.setAge(tile.age() + 1)
 	}
 
-	m := make([]int, len(w.world))
+	return w.State()
+}
 
-	//TODO: Break its out into its own method
+// State returns the snapshop of where each fish and shark is at on the map.
+func (w *Wator) State() WorldState {
+	wm := make([]int, len(w.world))
 	var t int
 	for i := 0; i < len(w.world); i++ {
 		switch w.world[i].(type) {
@@ -199,10 +206,11 @@ func (w *Wator) Update() []int {
 		default:
 			t = NONE
 		}
-		m[i] = t
+		wm[i] = t
 	}
 
-	return m
+	return wm
+
 }
 
 // adjacent returns up, down, left, right tile locations from the position.

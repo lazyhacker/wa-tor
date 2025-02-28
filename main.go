@@ -35,7 +35,7 @@ var (
 // interface.
 type Game struct {
 	world       wator.Wator
-	tileMap     []int
+	tileMap     wator.WorldState
 	sharkSprite *ebiten.Image
 	fishSprite  *ebiten.Image
 	gameTime    int
