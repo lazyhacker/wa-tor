@@ -3,9 +3,16 @@
 package wator
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"time"
+)
+
+const (
+	NONE = iota
+	FISH
+	SHARK
 )
 
 var (
@@ -18,34 +25,34 @@ type WorldItem interface {
 	Age() int
 	SetAge(int)
 	Spawn() bool
+	LastMove() uint
+	SetLastMove(uint)
 }
 
 type Wator struct {
 	world          []WorldItem // Game map is a NxM but represented linearly.
-	width, height  int
-	Chronon        int
+	Width, Height  int
+	Chronon        uint
 	fishSpawnRate  int
 	sharkSpawnRate int
-	sharkHealth    int
 }
 
 func (w *Wator) Init(width, height, numfish, numsharks, fsr, ssr, health int) {
 
-	w.width = width
-	w.height = height
+	w.Width = width
+	w.Height = height
 	fishSpawnRate = fsr
 	sharkSpawnRate = ssr
 	sharkHealth = health
 
-	if numfish+numsharks > width*height {
+	mapSize := w.Width * w.Height
+	if numfish+numsharks > mapSize {
 		log.Fatalf("Too many creatures to fit on map!")
 	}
 
 	if health > ssr {
 		log.Fatalf("shark spawn rate is faster then health rate so shark will always spawn befor hunger.")
 	}
-
-	mapSize := w.width * w.height
 
 	// Have a sequence of numbers from 0 to mapSize correspond to
 	// locations on the world that isn't occupied.
@@ -82,9 +89,9 @@ func (w *Wator) Init(width, height, numfish, numsharks, fsr, ssr, health int) {
 // Adjacent returns up, down, left, right tile locations from the position.
 func (w *Wator) Adjacent(pos int) []int {
 
-	totalTiles := w.width * w.height
-	up := pos - w.width
-	down := pos + w.width
+	totalTiles := w.Width * w.Height
+	up := pos - w.Width
+	down := pos + w.Width
 	left := pos - 1
 	right := pos + 1
 
@@ -99,34 +106,34 @@ func (w *Wator) Adjacent(pos int) []int {
 	}
 
 	// Check if it needs to go to wrap around to the end of the row.
-	if (right % w.width) == 0 {
-		right -= w.height
+	if (right % w.Width) == 0 {
+		right -= w.Height
 	}
 
 	// Check if it needs to wrap around to the start of the row.
-	if (left % w.width) < 0 {
-		left += w.height
+	if (left % w.Width) < 0 {
+		left += w.Height
 	}
 
 	return []int{up, down, left, right}
 }
 
-func (w *Wator) Update() error {
+func (w *Wator) Update() []int {
 
-	//if w.Chronon%20 != 0 {
-	//		w.Chronon++
-	//		return nil
-	//}
-
+	w.Chronon++
+	time.Sleep(50 * time.Millisecond)
 	for i, tile := range w.world {
 		if tile == nil {
 			continue
 		}
+		if tile.LastMove() == w.Chronon {
+			continue
+		}
+		tile.SetLastMove(w.Chronon)
 		// Handle movement and creature-specific behaviors.
 		adjacent := w.Adjacent(i)
 		var openTiles []int
-		newPos := w.PickPosition(i, openTiles)
-
+		var newPos int
 		switch c := tile.(type) {
 		case *Fish:
 			// Fish can only move to non-occupied squares.
@@ -135,12 +142,17 @@ func (w *Wator) Update() error {
 					openTiles = append(openTiles, adjacent[j])
 				}
 			}
+
+			newPos = w.PickPosition(i, openTiles)
 			if c.Spawn() {
 				w.world[newPos] = NewFish()
+				w.world[newPos].SetLastMove(w.Chronon)
 			}
 
 		case *Shark:
 
+			//fmt.Printf("(%d) health = %d\n", c.id, c.health)
+			//fmt.Printf("%d %d\n", i, c.id)
 			// If shark doesn't eat, it dies.
 			(*c).health--
 			if (*c).health == 0 {
@@ -155,12 +167,14 @@ func (w *Wator) Update() error {
 				}
 			}
 
+			newPos = w.PickPosition(i, openTiles)
 			if _, ok := w.world[newPos].(*Fish); ok {
-				(*c).health = w.sharkHealth + 1
+				(*c).health = sharkHealth + 1
 				w.world[newPos] = nil
 			}
 			if c.Spawn() {
 				w.world[newPos] = NewShark()
+				w.world[newPos].SetLastMove(w.Chronon)
 			}
 		}
 
@@ -169,10 +183,24 @@ func (w *Wator) Update() error {
 		}
 
 		tile.SetAge(tile.Age() + 1)
-
 	}
-	w.Chronon++
-	return nil
+
+	m := make([]int, len(w.world))
+
+	var t int
+	for i := 0; i < len(w.world); i++ {
+		switch w.world[i].(type) {
+		case *Fish:
+			t = FISH
+		case *Shark:
+			t = SHARK
+		default:
+			t = NONE
+		}
+		m[i] = t
+	}
+
+	return m
 }
 
 // PickPosition randomly picks the element from the given slice.
@@ -183,4 +211,25 @@ func (w *Wator) PickPosition(curr int, numbers []int) int {
 	}
 	rand.Seed(time.Now().UnixNano())
 	return numbers[rand.Intn(len(numbers))]
+}
+
+func (w *Wator) Debug() {
+
+	for i, _ := range w.world {
+
+		if i%w.Width == 0 {
+			fmt.Println()
+		}
+		switch w.world[i].(type) {
+		case *Fish:
+			fmt.Print("F")
+		case *Shark:
+			fmt.Print("S")
+		default:
+			fmt.Print("*")
+		}
+	}
+
+	fmt.Println()
+
 }
