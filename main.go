@@ -122,6 +122,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func main() {
+	flag.Parse()
 	ebiten.SetWindowSize(1024, 768)
 	//ebiten.SetWindowSize(TileSize**width, TileSize**height)
 	ebiten.SetWindowTitle("Wa-Tor")
