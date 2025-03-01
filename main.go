@@ -31,11 +31,12 @@ var (
 	height      = flag.Int("height", 24, "number of tiles verticals (rows)")
 )
 
+// Tile is a position on the screen corresponding to the position of the Wa-tor
+// world.
 type Tile struct {
 	sprite   int
 	tileType int
 	x, y     float64
-	version  string
 }
 
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
@@ -46,10 +47,15 @@ type Game struct {
 	sharkSprite  []*ebiten.Image
 	fishSprite   []*ebiten.Image
 	pause        bool
-	ch           chan []Tile
 	frames       [][]Tile
 	frameCounter int
 	speedTPS     int
+	pixelsMove   int
+}
+
+func (g *Game) AnimationSteps() int {
+
+	return TileSize / g.pixelsMove
 }
 
 // Set up the initial tileMap and randomly seed it with sharks and fish.
@@ -57,10 +63,12 @@ type Game struct {
 func (g *Game) Init(numfish, numshark, width, height int) {
 
 	g.speedTPS = 10
-	g.fishSprite = make([]*ebiten.Image, 8)
-	g.sharkSprite = make([]*ebiten.Image, 8)
-	g.ch = make(chan []Tile, 1)
+	g.pixelsMove = 4
+
 	// Set up the sprites.
+	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps())
+	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps())
+
 	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
 	if err != nil {
 		log.Fatalln("Unable to load shark image.")
@@ -77,16 +85,19 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 		g.fishSprite[i] = fs.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
 	}
 
+	// Initialize the world.
 	g.world = wator.Wator{}
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
 		log.Fatalf(err.Error())
 	}
+
 	ws := g.world.Update()
 	g.tileMap = g.StateToTiles(ws.Current)
-
 	g.frames = append(g.frames, g.StateToTiles(ws.Current))
 }
 
+// StateToTiles converts the positions of the Wa-tor to the set of tiles
+// that can buse used to give a visual repesentation on the screen.
 func (g *Game) StateToTiles(w wator.WorldState) []Tile {
 
 	tiles := make([]Tile, len(w))
@@ -97,23 +108,23 @@ func (g *Game) StateToTiles(w wator.WorldState) []Tile {
 			tileType: w[i],
 			x:        x,
 			y:        y,
-			version:  "Initial",
 		})
 	}
 	return tiles
-
 }
 
+// DeltaToTiles generates intermediate tile maps to animate the movement of
+// fishes and sharks so that it doesn't look like they teleported between
+// tiles.
 func (g *Game) DeltaToTiles(delta []wator.Delta) {
 
-	//step := TileSize / 4 // pixels per step
-	for i := 1; i < 9; i++ {
-		offset := float64(i * 4)
+	steps := g.AnimationSteps() + 1
+	for i := 1; i < steps; i++ {
+		offset := float64(i * g.pixelsMove)
 		tile := make([]Tile, g.world.Height*g.world.Width)
 		for _, d := range delta {
-			a, b := g.TileCoordinate(d.From)
+			x, y := g.TileCoordinate(d.From)
 
-			x, y := a, b
 			switch d.Action {
 			case wator.MOVE_EAST:
 				x += offset
@@ -126,18 +137,15 @@ func (g *Game) DeltaToTiles(delta []wator.Delta) {
 			default:
 				continue
 			}
-			//fmt.Printf("Moving from (%g,%g) to (%g,%g)\n", a, b, x, y)
+
 			tile[d.From] = Tile{
 				sprite:   i - 1,
 				tileType: d.Object,
 				x:        x,
 				y:        y,
-				version:  "Delta",
 			}
-
 		}
 		g.frames = append(g.frames, tile)
-
 	}
 
 	return
@@ -153,6 +161,21 @@ func (g *Game) TileCoordinate(idx int) (float64, float64) {
 	return float64(col), float64(row)
 }
 
+// RenderMap will paint the world and the creatures to the screen.
+func (g *Game) RenderMap(screen *ebiten.Image, m []Tile) {
+	opts := &ebiten.DrawImageOptions{}
+	for _, t := range m {
+		opts.GeoM.Reset()
+		opts.GeoM.Translate(t.x, t.y)
+		switch t.tileType {
+		case wator.FISH:
+			screen.DrawImage(g.fishSprite[t.sprite], opts)
+		case wator.SHARK:
+			screen.DrawImage(g.sharkSprite[t.sprite], opts)
+		}
+	}
+}
+
 // Update is called by Ebiten every 'tick' based on Ticks Per Seconds (TPS).
 // By default, Ebiten tries to run at 60 TPS so Update will be called every
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
@@ -162,12 +185,13 @@ func (g *Game) Update() error {
 		g.pause = !g.pause
 	}
 
+	// Don't advance the world every update because that moves too fast
+	// for users to see the changes each Chronon.
 	g.frameCounter++
 	if g.frameCounter < g.speedTPS {
 		return nil
 	}
 	g.frameCounter = 0
-	//fmt.Println("Update")
 
 	if !g.pause {
 		worldStates := g.world.Update()
@@ -177,9 +201,7 @@ func (g *Game) Update() error {
 		g.tileMap = g.StateToTiles(worldStates.Current)
 	}
 
-	//fmt.Println("Leaving Update")
 	return nil
-
 }
 
 // Draw is called by Ebiten at the refresh rate of the display to render
@@ -192,26 +214,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(screen, strconv.FormatUint(uint64(g.world.Chronon), 10))
 
 	if len(g.frames) == 0 {
-		g.DrawMap(screen, g.tileMap)
+		g.RenderMap(screen, g.tileMap)
 		return
 	}
-	g.DrawMap(screen, g.frames[0])
+	g.RenderMap(screen, g.frames[0])
 	g.frames = g.frames[1:]
 
-}
-
-func (g *Game) DrawMap(screen *ebiten.Image, m []Tile) {
-	opts := &ebiten.DrawImageOptions{}
-	for _, t := range m {
-		opts.GeoM.Reset()
-		opts.GeoM.Translate(t.x, t.y)
-		switch t.tileType {
-		case wator.FISH:
-			screen.DrawImage(g.fishSprite[t.sprite], opts)
-		case wator.SHARK:
-			screen.DrawImage(g.sharkSprite[t.sprite], opts)
-		}
-	}
 }
 
 // Layout is the logical screen size which can be different from the actual
@@ -229,9 +237,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	flag.Parse()
-	//ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowSize(TileSize**width, TileSize**height)
 	ebiten.SetWindowTitle("Wa-Tor")
+	ebiten.SetWindowResizable(true)
 
 	wator := &Game{}
 	wator.Init(*startFish, *startSharks, *width, *height)
