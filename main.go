@@ -5,6 +5,7 @@ package main // package lazyhacker.dev/wa-tor
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -31,12 +32,16 @@ var (
 	height      = flag.Int("height", 24, "number of tiles verticals (rows)")
 )
 
-// ----------- Game  -------------------
+type Tile struct {
+	tileType int
+	x, y     float64
+}
+
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
 // interface.
 type Game struct {
 	world       wator.Wator
-	tileMap     wator.WorldState // Used by Draw to draw sprites to the screen.
+	tileMap     []Tile // Used by Draw to draw sprites to the screen.
 	sharkSprite *ebiten.Image
 	fishSprite  *ebiten.Image
 	pause       bool
@@ -64,7 +69,57 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 		log.Fatalf(err.Error())
 	}
 	ws := g.world.Update()
-	g.tileMap = ws.Current
+	g.tileMap = g.StateToTiles(ws.Current)
+}
+
+func (g *Game) StateToTiles(w wator.WorldState) []Tile {
+
+	tiles := make([]Tile, len(w))
+	for i := 0; i < len(w); i++ {
+		x, y := g.TileCoordinate(i)
+		tiles = append(tiles, Tile{
+			tileType: w[i],
+			x:        x,
+			y:        y,
+		})
+	}
+	return tiles
+
+}
+
+func (g *Game) DeltaToTiles(delta []wator.Delta) {
+
+	step := TileSize / 4 // pixels per step
+	for i := 1; i <= step; i++ {
+		offset := float64(i * 4)
+		tile := make([]Tile, g.world.Height*g.world.Width)
+		for _, d := range delta {
+			a, b := g.TileCoordinate(d.From)
+
+			x, y := a, b
+			switch d.Action {
+			case wator.MOVE_EAST:
+				x += offset
+			case wator.MOVE_WEST:
+				x -= offset
+			case wator.MOVE_NORTH:
+				y -= offset
+			case wator.MOVE_SOUTH:
+				y += offset
+			default:
+				continue
+			}
+			//fmt.Printf("Moving from (%g,%g) to (%g,%g)\n", a, b, x, y)
+			tile[d.From] = Tile{
+				tileType: d.Object,
+				x:        x,
+				y:        y,
+			}
+		}
+
+		g.tileMap = tile
+	}
+	return
 }
 
 // TileCoordinate converts the map tile index to the logical location (row, col)
@@ -77,22 +132,23 @@ func (g *Game) TileCoordinate(idx int) (float64, float64) {
 	return float64(col), float64(row)
 }
 
-/* ------------------- Ebiten ------------------- */
-
 // Update is called by Ebiten every 'tick' based on Ticks Per Seconds (TPS).
 // By default, Ebiten tries to run at 60 TPS so Update will be called every
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
 func (g *Game) Update() error {
 
+	fmt.Println("Update")
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.pause = !g.pause
 	}
 
-	//time.Sleep(50 * time.Millisecond)
 	if !g.pause {
 		worldStates := g.world.Update()
-		g.tileMap = worldStates.Current
+		delta := worldStates.ChangeLog
+		g.DeltaToTiles(delta)
+		g.tileMap = g.StateToTiles(worldStates.Current)
 	}
+
 	return nil
 
 }
@@ -103,14 +159,15 @@ func (g *Game) Update() error {
 // refresh rate, Draw will be called twice as often as Update.
 func (g *Game) Draw(screen *ebiten.Image) {
 
+	fmt.Println("Draw")
 	// Draw each of the map tiles with the sprite of the creature (fish/shark).
 
 	screen.Fill(color.RGBA{120, 180, 255, 255})
 	opts := &ebiten.DrawImageOptions{}
-	for i, t := range g.tileMap {
+	for _, t := range g.tileMap {
 		opts.GeoM.Reset()
-		opts.GeoM.Translate(g.TileCoordinate(i))
-		switch t {
+		opts.GeoM.Translate(t.x, t.y)
+		switch t.tileType {
 		case wator.FISH:
 			screen.DrawImage(g.fishSprite, opts)
 		case wator.SHARK:

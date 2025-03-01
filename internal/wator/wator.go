@@ -47,10 +47,10 @@ const (
 
 // Delta describes the changes of a creature between two Chronon.
 type Delta struct {
-	object int // type of creature: FISH, SHARK
-	from   int // position in previous Chronon
-	to     int // position in current Chronon
-	action int // Action = NO_ACTION, MOVE, DEATH, BIRTH
+	Object int // type of creature: FISH, SHARK
+	From   int // position in previous Chronon
+	To     int // position in current Chronon
+	Action int // Action = NO_ACTION, MOVE, DEATH, BIRTH
 }
 
 var (
@@ -183,18 +183,18 @@ func (w *Wator) Update() WorldStates {
 				w.world[newPos] = NewFish()
 				w.world[newPos].setLastMove(w.Chronon)
 				delta = append(delta, Delta{
-					object: FISH,
-					from:   i,
-					to:     i,
-					action: BIRTH,
+					Object: FISH,
+					From:   i,
+					To:     i,
+					Action: BIRTH,
 				})
 			}
 
 			delta = append(delta, Delta{
-				object: FISH,
-				from:   i,
-				to:     newPos,
-				action: w.Direction(i, newPos),
+				Object: FISH,
+				From:   i,
+				To:     newPos,
+				Action: w.Direction(i, newPos),
 			})
 
 		case *shark:
@@ -204,10 +204,10 @@ func (w *Wator) Update() WorldStates {
 			if (*c).health == 0 {
 				w.world[i] = nil
 				delta = append(delta, Delta{
-					object: SHARK,
-					from:   i,
-					to:     i,
-					action: DEATH,
+					Object: SHARK,
+					From:   i,
+					To:     i,
+					Action: DEATH,
 				})
 				continue
 			}
@@ -227,29 +227,29 @@ func (w *Wator) Update() WorldStates {
 
 			newPos = w.pickPosition(i, openTiles)
 			delta = append(delta, Delta{
-				object: SHARK,
-				from:   i,
-				to:     newPos,
-				action: w.Direction(i, newPos),
+				Object: SHARK,
+				From:   i,
+				To:     newPos,
+				Action: w.Direction(i, newPos),
 			})
 			if _, ok := w.world[newPos].(*fish); ok {
 				(*c).health = sharkHealth + 1
 				w.world[newPos] = nil
 				delta = append(delta, Delta{
-					object: SHARK,
-					from:   i,
-					to:     newPos,
-					action: ATE,
+					Object: SHARK,
+					From:   i,
+					To:     newPos,
+					Action: ATE,
 				})
 			}
 			if c.spawn() {
 				w.world[newPos] = NewShark()
 				w.world[newPos].setLastMove(w.Chronon)
 				delta = append(delta, Delta{
-					object: SHARK,
-					from:   i,
-					to:     i,
-					action: BIRTH,
+					Object: SHARK,
+					From:   i,
+					To:     i,
+					Action: BIRTH,
 				})
 			}
 		}
@@ -352,21 +352,20 @@ func (w *Wator) DebugPrint() {
 
 }
 
-func (w *Wator) Direction(start, end) int {
+func (w *Wator) Direction(start, end int) int {
 
 	if start == end {
 		return MOVE_NONE
 	}
 	if end == (start + 1) {
-		return MOVE_RIGHT
+		return MOVE_EAST
 	}
 	if end == (start - 1) {
-		return MOVE_LEFT
+		return MOVE_WEST
 	}
 	if start < end {
-		return MOVE_UP
+		return MOVE_NORTH
 	}
-	if start > end {
-		return MOVE_DOWN
-	}
+	return MOVE_SOUTH
+
 }
