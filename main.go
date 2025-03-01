@@ -33,8 +33,10 @@ var (
 )
 
 type Tile struct {
+	sprite   int
 	tileType int
 	x, y     float64
+	version  string
 }
 
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
@@ -42,27 +44,36 @@ type Tile struct {
 type Game struct {
 	world       wator.Wator
 	tileMap     []Tile // Used by Draw to draw sprites to the screen.
-	sharkSprite *ebiten.Image
-	fishSprite  *ebiten.Image
+	sharkSprite []*ebiten.Image
+	fishSprite  []*ebiten.Image
 	pause       bool
+	ch          chan []Tile
+	queue       [][]Tile
 }
 
 // Set up the initial tileMap and randomly seed it with sharks and fish.
 // If called again, it will reset the map and re-seed.
 func (g *Game) Init(numfish, numshark, width, height int) {
 
+	g.fishSprite = make([]*ebiten.Image, 8)
+	g.sharkSprite = make([]*ebiten.Image, 8)
+	g.ch = make(chan []Tile, 1)
 	// Set up the sprites.
 	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
 	if err != nil {
 		log.Fatalln("Unable to load shark image.")
 	}
-	g.sharkSprite = ss.SubImage(image.Rect(0, 0, 32, 32)).(*ebiten.Image)
+	for i := 0; i < 8; i++ {
+		g.sharkSprite[i] = ss.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 32)).(*ebiten.Image)
+	}
 
 	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
 	if err != nil {
 		log.Fatalln("Unable to load fish image.")
 	}
-	g.fishSprite = fs.SubImage(image.Rect(0, 0, 32, 16)).(*ebiten.Image)
+	for i := 0; i < 8; i++ {
+		g.fishSprite[i] = fs.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
+	}
 
 	g.world = wator.Wator{}
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
@@ -70,6 +81,9 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	}
 	ws := g.world.Update()
 	g.tileMap = g.StateToTiles(ws.Current)
+	g.world.Chronon = 1
+
+	g.queue = append(g.queue, g.StateToTiles(ws.Current))
 }
 
 func (g *Game) StateToTiles(w wator.WorldState) []Tile {
@@ -78,9 +92,11 @@ func (g *Game) StateToTiles(w wator.WorldState) []Tile {
 	for i := 0; i < len(w); i++ {
 		x, y := g.TileCoordinate(i)
 		tiles = append(tiles, Tile{
+			sprite:   0,
 			tileType: w[i],
 			x:        x,
 			y:        y,
+			version:  "Initial",
 		})
 	}
 	return tiles
@@ -89,8 +105,8 @@ func (g *Game) StateToTiles(w wator.WorldState) []Tile {
 
 func (g *Game) DeltaToTiles(delta []wator.Delta) {
 
-	step := TileSize / 4 // pixels per step
-	for i := 1; i <= step; i++ {
+	//step := TileSize / 4 // pixels per step
+	for i := 1; i < 9; i++ {
 		offset := float64(i * 4)
 		tile := make([]Tile, g.world.Height*g.world.Width)
 		for _, d := range delta {
@@ -111,13 +127,16 @@ func (g *Game) DeltaToTiles(delta []wator.Delta) {
 			}
 			//fmt.Printf("Moving from (%g,%g) to (%g,%g)\n", a, b, x, y)
 			tile[d.From] = Tile{
+				sprite:   i - 1,
 				tileType: d.Object,
 				x:        x,
 				y:        y,
+				version:  "Delta",
 			}
-		}
 
-		g.tileMap = tile
+		}
+		g.queue = append(g.queue, tile)
+
 	}
 	return
 }
@@ -137,16 +156,16 @@ func (g *Game) TileCoordinate(idx int) (float64, float64) {
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
 func (g *Game) Update() error {
 
-	fmt.Println("Update")
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.pause = !g.pause
+		fmt.Println("Spacebar detected")
 	}
 
 	if !g.pause {
 		worldStates := g.world.Update()
 		delta := worldStates.ChangeLog
 		g.DeltaToTiles(delta)
-		g.tileMap = g.StateToTiles(worldStates.Current)
+		//g.queue = append(g.queue, g.StateToTiles(worldStates.Current))
 	}
 
 	return nil
@@ -159,20 +178,24 @@ func (g *Game) Update() error {
 // refresh rate, Draw will be called twice as often as Update.
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	fmt.Println("Draw")
 	// Draw each of the map tiles with the sprite of the creature (fish/shark).
-
 	screen.Fill(color.RGBA{120, 180, 255, 255})
+
 	opts := &ebiten.DrawImageOptions{}
-	for _, t := range g.tileMap {
-		opts.GeoM.Reset()
-		opts.GeoM.Translate(t.x, t.y)
-		switch t.tileType {
-		case wator.FISH:
-			screen.DrawImage(g.fishSprite, opts)
-		case wator.SHARK:
-			screen.DrawImage(g.sharkSprite, opts)
+	fmt.Printf("Size of queue = %d\n", len(g.queue))
+	if len(g.queue) > 0 {
+		tileMap := g.queue[0]
+		for _, t := range tileMap {
+			opts.GeoM.Reset()
+			opts.GeoM.Translate(t.x, t.y)
+			switch t.tileType {
+			case wator.FISH:
+				screen.DrawImage(g.fishSprite[t.sprite], opts)
+			case wator.SHARK:
+				screen.DrawImage(g.sharkSprite[t.sprite], opts)
+			}
 		}
+		g.queue = g.queue[1:]
 	}
 	ebitenutil.DebugPrint(screen, strconv.FormatUint(uint64(g.world.Chronon), 10))
 
