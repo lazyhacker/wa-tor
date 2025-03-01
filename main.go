@@ -42,19 +42,22 @@ type Tile struct {
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
 // interface.
 type Game struct {
-	world       wator.Wator
-	tileMap     []Tile // Used by Draw to draw sprites to the screen.
-	sharkSprite []*ebiten.Image
-	fishSprite  []*ebiten.Image
-	pause       bool
-	ch          chan []Tile
-	queue       [][]Tile
+	world        wator.Wator
+	tileMap      []Tile
+	sharkSprite  []*ebiten.Image
+	fishSprite   []*ebiten.Image
+	pause        bool
+	ch           chan []Tile
+	frames       [][]Tile
+	frameCounter int
+	speedTPS     int
 }
 
 // Set up the initial tileMap and randomly seed it with sharks and fish.
 // If called again, it will reset the map and re-seed.
 func (g *Game) Init(numfish, numshark, width, height int) {
 
+	g.speedTPS = 10
 	g.fishSprite = make([]*ebiten.Image, 8)
 	g.sharkSprite = make([]*ebiten.Image, 8)
 	g.ch = make(chan []Tile, 1)
@@ -81,9 +84,8 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	}
 	ws := g.world.Update()
 	g.tileMap = g.StateToTiles(ws.Current)
-	g.world.Chronon = 1
 
-	g.queue = append(g.queue, g.StateToTiles(ws.Current))
+	g.frames = append(g.frames, g.StateToTiles(ws.Current))
 }
 
 func (g *Game) StateToTiles(w wator.WorldState) []Tile {
@@ -135,9 +137,10 @@ func (g *Game) DeltaToTiles(delta []wator.Delta) {
 			}
 
 		}
-		g.queue = append(g.queue, tile)
+		g.frames = append(g.frames, tile)
 
 	}
+
 	return
 }
 
@@ -161,13 +164,22 @@ func (g *Game) Update() error {
 		fmt.Println("Spacebar detected")
 	}
 
+	g.frameCounter++
+	if g.frameCounter < g.speedTPS {
+		return nil
+	}
+	g.frameCounter = 0
+	//fmt.Println("Update")
+
 	if !g.pause {
 		worldStates := g.world.Update()
 		delta := worldStates.ChangeLog
 		g.DeltaToTiles(delta)
-		//g.queue = append(g.queue, g.StateToTiles(worldStates.Current))
+		g.frames = append(g.frames, g.StateToTiles(worldStates.Current))
+		g.tileMap = g.StateToTiles(worldStates.Current)
 	}
 
+	//fmt.Println("Leaving Update")
 	return nil
 
 }
@@ -178,27 +190,30 @@ func (g *Game) Update() error {
 // refresh rate, Draw will be called twice as often as Update.
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	// Draw each of the map tiles with the sprite of the creature (fish/shark).
 	screen.Fill(color.RGBA{120, 180, 255, 255})
-
-	opts := &ebiten.DrawImageOptions{}
-	fmt.Printf("Size of queue = %d\n", len(g.queue))
-	if len(g.queue) > 0 {
-		tileMap := g.queue[0]
-		for _, t := range tileMap {
-			opts.GeoM.Reset()
-			opts.GeoM.Translate(t.x, t.y)
-			switch t.tileType {
-			case wator.FISH:
-				screen.DrawImage(g.fishSprite[t.sprite], opts)
-			case wator.SHARK:
-				screen.DrawImage(g.sharkSprite[t.sprite], opts)
-			}
-		}
-		g.queue = g.queue[1:]
-	}
 	ebitenutil.DebugPrint(screen, strconv.FormatUint(uint64(g.world.Chronon), 10))
 
+	if len(g.frames) == 0 {
+		g.DrawMap(screen, g.tileMap)
+		return
+	}
+	g.DrawMap(screen, g.frames[0])
+	g.frames = g.frames[1:]
+
+}
+
+func (g *Game) DrawMap(screen *ebiten.Image, m []Tile) {
+	opts := &ebiten.DrawImageOptions{}
+	for _, t := range m {
+		opts.GeoM.Reset()
+		opts.GeoM.Translate(t.x, t.y)
+		switch t.tileType {
+		case wator.FISH:
+			screen.DrawImage(g.fishSprite[t.sprite], opts)
+		case wator.SHARK:
+			screen.DrawImage(g.sharkSprite[t.sprite], opts)
+		}
+	}
 }
 
 // Layout is the logical screen size which can be different from the actual
@@ -216,7 +231,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	flag.Parse()
-	ebiten.SetWindowSize(1024, 768)
+	ebiten.SetWindowSize(640, 480)
 	//ebiten.SetWindowSize(TileSize**width, TileSize**height)
 	ebiten.SetWindowTitle("Wa-Tor")
 
