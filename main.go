@@ -14,6 +14,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 const (
@@ -38,6 +39,7 @@ type Game struct {
 	tileMap     wator.WorldState // Used by Draw to draw sprites to the screen.
 	sharkSprite *ebiten.Image
 	fishSprite  *ebiten.Image
+	pause       bool
 }
 
 // Set up the initial tileMap and randomly seed it with sharks and fish.
@@ -61,7 +63,8 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
 		log.Fatalf(err.Error())
 	}
-	g.tileMap = g.world.Update()
+	ws := g.world.Update()
+	g.tileMap = ws.Current
 }
 
 // TileCoordinate converts the map tile index to the logical location (row, col)
@@ -81,8 +84,17 @@ func (g *Game) TileCoordinate(idx int) (float64, float64) {
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
 func (g *Game) Update() error {
 
-	g.tileMap = g.world.Update()
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		g.pause = !g.pause
+	}
+
+	//time.Sleep(50 * time.Millisecond)
+	if !g.pause {
+		worldStates := g.world.Update()
+		g.tileMap = worldStates.Current
+	}
 	return nil
+
 }
 
 // Draw is called by Ebiten at the refresh rate of the display to render

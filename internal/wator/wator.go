@@ -22,9 +22,35 @@ const (
 	SHARK        // Represents a shark in Wator.
 )
 
-// WorldState contains the positions of every fish and shark on the map.
-// The index is the position and the value is NONE, FISH, or SHARK.
 type WorldState []int
+
+// WorldStates contains the positions of every fish and shark on the map.
+// The index is the position and the value is NONE, FISH, or SHARK.
+type WorldStates struct {
+	Previous  WorldState // Position of Fishes/Shark previous chronon.
+	Current   WorldState // Position of Fishes/Shark in current chronon.
+	ChangeLog []Delta    // List of changes between Chronon.
+}
+
+const (
+	NO_ACTION  = iota // No action by creature
+	MOVE              // Movement
+	MOVE_NORTH        // Movement above
+	MOVE_SOUTH        // Movement below
+	MOVE_EAST         //Movement right
+	MOVE_WEST         //Movement left
+	DEATH             // creature died
+	BIRTH             // new creature born
+	ATE               // creature ate
+)
+
+// Delta describes the changes of a creature between two Chronon.
+type Delta struct {
+	object int // type of creature: FISH, SHARK
+	from   int // position in previous Chronon
+	to     int // position in current Chronon
+	action int // Action = NO_ACTION, MOVE, DEATH, BIRTH
+}
 
 var (
 	fishSpawnRate  int
@@ -115,9 +141,12 @@ func (w *Wator) Init(width, height, numfish, numsharks, fsr, ssr, health int) er
 //     fish otherwise it will move to an random adjacent unoccupied square.
 //   - Sharks must eat a fish within a number of cycles or it will die.
 //   - At a certain age a shark will spawn a new shark.
-func (w *Wator) Update() []int {
+func (w *Wator) Update() WorldStates {
 
+	prev := w.State()
 	w.Chronon++
+	var delta []Delta
+
 	for i, tile := range w.world {
 		if tile == nil {
 			continue
@@ -152,7 +181,20 @@ func (w *Wator) Update() []int {
 				// end up in the current position.
 				w.world[newPos] = NewFish()
 				w.world[newPos].setLastMove(w.Chronon)
+				delta = append(delta, Delta{
+					object: FISH,
+					from:   i,
+					to:     i,
+					action: BIRTH,
+				})
 			}
+
+			delta = append(delta, Delta{
+				object: FISH,
+				from:   i,
+				to:     newPos,
+				action: MOVE,
+			})
 
 		case *shark:
 
@@ -160,6 +202,12 @@ func (w *Wator) Update() []int {
 			(*c).health--
 			if (*c).health == 0 {
 				w.world[i] = nil
+				delta = append(delta, Delta{
+					object: SHARK,
+					from:   i,
+					to:     i,
+					action: DEATH,
+				})
 				continue
 			}
 
@@ -177,13 +225,31 @@ func (w *Wator) Update() []int {
 			}
 
 			newPos = w.pickPosition(i, openTiles)
+			delta = append(delta, Delta{
+				object: SHARK,
+				from:   i,
+				to:     newPos,
+				action: MOVE,
+			})
 			if _, ok := w.world[newPos].(*fish); ok {
 				(*c).health = sharkHealth + 1
 				w.world[newPos] = nil
+				delta = append(delta, Delta{
+					object: SHARK,
+					from:   i,
+					to:     newPos,
+					action: ATE,
+				})
 			}
 			if c.spawn() {
 				w.world[newPos] = NewShark()
 				w.world[newPos].setLastMove(w.Chronon)
+				delta = append(delta, Delta{
+					object: SHARK,
+					from:   i,
+					to:     i,
+					action: BIRTH,
+				})
 			}
 		}
 
@@ -195,11 +261,17 @@ func (w *Wator) Update() []int {
 		tile.setAge(tile.age() + 1)
 	}
 
-	return w.State()
+	current := w.State()
+
+	return WorldStates{
+		Previous:  prev,
+		Current:   current,
+		ChangeLog: delta,
+	}
 }
 
 // State returns the snapshop of where each fish and shark is at on the map.
-func (w *Wator) State() WorldState {
+func (w *Wator) State() []int {
 	wm := make([]int, len(w.world))
 	var t int
 	for i := 0; i < len(w.world); i++ {
@@ -213,9 +285,7 @@ func (w *Wator) State() WorldState {
 		}
 		wm[i] = t
 	}
-
 	return wm
-
 }
 
 // adjacent returns up, down, left, right tile locations from the position.
