@@ -5,7 +5,6 @@ package main // package lazyhacker.dev/wa-tor
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -161,7 +160,6 @@ func (g *Game) Update() error {
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.pause = !g.pause
-		fmt.Println("Spacebar detected")
 	}
 
 	g.frameCounter++
@@ -231,8 +229,8 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	flag.Parse()
-	ebiten.SetWindowSize(640, 480)
-	//ebiten.SetWindowSize(TileSize**width, TileSize**height)
+	//ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(TileSize**width, TileSize**height)
 	ebiten.SetWindowTitle("Wa-Tor")
 
 	wator := &Game{}
