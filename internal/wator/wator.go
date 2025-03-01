@@ -35,6 +35,7 @@ type WorldStates struct {
 const (
 	NO_ACTION  = iota // No action by creature
 	MOVE              // Movement
+	MOVE_NONE         // No movement
 	MOVE_NORTH        // Movement above
 	MOVE_SOUTH        // Movement below
 	MOVE_EAST         //Movement right
@@ -193,7 +194,7 @@ func (w *Wator) Update() WorldStates {
 				object: FISH,
 				from:   i,
 				to:     newPos,
-				action: MOVE,
+				action: w.Direction(i, newPos),
 			})
 
 		case *shark:
@@ -229,7 +230,7 @@ func (w *Wator) Update() WorldStates {
 				object: SHARK,
 				from:   i,
 				to:     newPos,
-				action: MOVE,
+				action: w.Direction(i, newPos),
 			})
 			if _, ok := w.world[newPos].(*fish); ok {
 				(*c).health = sharkHealth + 1
@@ -349,4 +350,23 @@ func (w *Wator) DebugPrint() {
 
 	fmt.Println()
 
+}
+
+func (w *Wator) Direction(start, end) int {
+
+	if start == end {
+		return MOVE_NONE
+	}
+	if end == (start + 1) {
+		return MOVE_RIGHT
+	}
+	if end == (start - 1) {
+		return MOVE_LEFT
+	}
+	if start < end {
+		return MOVE_UP
+	}
+	if start > end {
+		return MOVE_DOWN
+	}
 }
