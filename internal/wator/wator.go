@@ -176,20 +176,21 @@ func (w *Wator) Update() WorldStates {
 			newPos = w.pickPosition(i, openTiles)
 			// TODO: This can be refactored to use an interface method
 			// and not repeat similar behavior with shark.
-			if c.spawn() {
-				// Put the spawn at the new position because it will
-				// then get swapped before the turn is completed and
-				// end up in the current position.
-				w.world[newPos] = NewFish()
-				w.world[newPos].setLastMove(w.Chronon)
-				delta = append(delta, Delta{
-					Object: FISH,
-					From:   i,
-					To:     i,
-					Action: BIRTH,
-				})
-			}
-
+			/*
+				if c.spawn() {
+					// Put the spawn at the new position because it will
+					// then get swapped before the turn is completed and
+					// end up in the current position.
+					w.world[newPos] = NewFish()
+					w.world[newPos].setLastMove(w.Chronon)
+					delta = append(delta, Delta{
+						Object: FISH,
+						From:   i,
+						To:     i,
+						Action: BIRTH,
+					})
+				}
+			*/
 			delta = append(delta, Delta{
 				Object: FISH,
 				From:   i,
