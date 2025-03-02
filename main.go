@@ -5,9 +5,11 @@ package main // package lazyhacker.dev/wa-tor
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"image/color"
 	"log"
+	"math"
 	"strconv"
 
 	"lazyhacker.dev/wa-tor/internal/wator"
@@ -19,6 +21,10 @@ import (
 
 const (
 	TileSize = 32 // pixels width/height per tile
+	EAST     = iota
+	WEST
+	NORTH
+	SOUTH
 )
 
 var (
@@ -34,9 +40,10 @@ var (
 // Tile is a position on the screen corresponding to the position of the Wa-tor
 // world.
 type Tile struct {
-	sprite   int
-	tileType int
-	x, y     float64
+	sprite    int
+	tileType  int
+	x, y      float64
+	direction int
 }
 
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
@@ -88,7 +95,7 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	// Initialize the world.
 	g.world = wator.Wator{}
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err.Error())
 	}
 
 	ws := g.world.Update()
@@ -118,6 +125,7 @@ func (g *Game) StateToTiles(w wator.WorldState) []Tile {
 // tiles.
 func (g *Game) DeltaToTiles(delta []wator.Delta) {
 
+	var dir int
 	steps := g.AnimationSteps() + 1
 	for i := 1; i < steps; i++ {
 		offset := float64(i * g.pixelsMove)
@@ -128,21 +136,26 @@ func (g *Game) DeltaToTiles(delta []wator.Delta) {
 			switch d.Action {
 			case wator.MOVE_EAST:
 				x += offset
+				dir = EAST
 			case wator.MOVE_WEST:
 				x -= offset
+				dir = WEST
 			case wator.MOVE_NORTH:
 				y -= offset
+				dir = NORTH
 			case wator.MOVE_SOUTH:
 				y += offset
+				dir = SOUTH
 			default:
 				continue
 			}
 
 			tile[d.From] = Tile{
-				sprite:   i - 1,
-				tileType: d.Object,
-				x:        x,
-				y:        y,
+				sprite:    i - 1,
+				tileType:  d.Object,
+				x:         x,
+				y:         y,
+				direction: dir,
 			}
 		}
 		g.frames = append(g.frames, tile)
@@ -164,9 +177,36 @@ func (g *Game) TileCoordinate(idx int) (float64, float64) {
 // RenderMap will paint the world and the creatures to the screen.
 func (g *Game) RenderMap(screen *ebiten.Image, m []Tile) {
 	opts := &ebiten.DrawImageOptions{}
+
 	for _, t := range m {
 		opts.GeoM.Reset()
 		opts.GeoM.Translate(t.x, t.y)
+		switch t.direction {
+		case NORTH:
+			// Move the image's center to the screen's upper-left corner.
+			// This is a preparation for rotating. When geometry matrices are applied,
+			// the origin point is the upper-left corner.
+			opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
+
+			// Rotate the image. As a result, the anchor point of this rotate is
+			// the center of the image.
+			opts.GeoM.Rotate(float64(270%360) * 2 * math.Pi / 360)
+			opts.GeoM.Translate(t.x, t.y)
+			fmt.Println("North")
+		case SOUTH:
+			fmt.Println("SOUTH")
+			opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
+			opts.GeoM.Rotate(float64(90%360) * 2 * math.Pi / 360)
+			opts.GeoM.Translate(t.x, t.y)
+
+		case EAST:
+			fmt.Println("Moving EAST")
+		case WEST:
+			fmt.Println("WEST")
+			opts.GeoM.Translate(t.x+TileSize, 0)
+			opts.GeoM.Scale(-1, 1)
+
+		}
 		switch t.tileType {
 		case wator.FISH:
 			screen.DrawImage(g.fishSprite[t.sprite], opts)
