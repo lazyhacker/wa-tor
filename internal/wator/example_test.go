@@ -1,10 +1,8 @@
-package wator_test
+package wator
 
 import (
 	"fmt"
 	"log"
-
-	. "wator"
 )
 
 func Example() {
