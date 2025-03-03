@@ -52,6 +52,51 @@ type Delta struct {
 	Action int // Action = NO_ACTION, MOVE, DEATH, BIRTH
 }
 
+func (d *Delta) Dump() {
+
+	var obj, action string
+
+	switch d.Object {
+
+	case NONE:
+		obj = "NONE"
+	case FISH:
+		obj = "FISH"
+	case SHARK:
+		obj = "SHARK"
+	default:
+		obj = "UNKNOWN"
+
+	}
+
+	switch d.Action {
+	case NO_ACTION:
+		action = "NO_ACTION"
+
+	case MOVE:
+		action = "MOVE"
+	case MOVE_NONE:
+		action = "MOVE_NONE"
+	case MOVE_NORTH:
+		action = "MOVE_NORTH"
+	case MOVE_SOUTH:
+		action = "MOVE_SOUTH"
+	case MOVE_EAST:
+		action = "MOVE_EAST"
+	case MOVE_WEST:
+		action = "MOVE_WEST"
+	case DEATH:
+		action = "DEATH"
+	case BIRTH:
+		action = "BIRTH"
+	case ATE:
+		action = "ATE"
+	}
+
+	fmt.Printf("Animal = %v from %d to %d Action=%v\n", obj, d.From, d.To, action)
+
+}
+
 var (
 	fishSpawnRate  int
 	sharkSpawnRate int
@@ -160,7 +205,7 @@ func (w *Wator) Update() WorldStates {
 		tile.setLastMove(w.Chronon)
 
 		// find adjacent positions
-		adjacents := w.adjacent(i)
+		adjacents := w.adjacentList(i)
 		newPos := i
 		switch c := tile.(type) {
 		case *fish:
@@ -303,18 +348,23 @@ func (w *Wator) State() []int {
 	return wm
 }
 
-// adjacent returns up, down, left, right tile locations from the position.
-func (w *Wator) adjacent(pos int) []int {
+// adjacentList returns up, down, left, right tile locations from the position.
+func (w *Wator) adjacentList(pos int) []int {
 
+	up, down, left, right := w.adjacents(pos)
+	return []int{up, down, left, right}
+}
+
+func (w *Wator) adjacents(pos int) (up, down, left, right int) {
 	//row = pos / w.Width
 	//col = pos % w.Width
 
 	totalTiles := w.Width * w.Height
 
-	up := pos - w.Width
-	down := pos + w.Width
-	left := pos - 1
-	right := pos + 1
+	up = pos - w.Width
+	down = pos + w.Width
+	left = pos - 1
+	right = pos + 1
 
 	// Check if needs to loop around to the bottom of the map.
 	if up < 0 {
@@ -336,7 +386,7 @@ func (w *Wator) adjacent(pos int) []int {
 		left += w.Width
 	}
 
-	return []int{up, down, left, right}
+	return
 }
 
 // pickPosition randomly picks the element from the given slice.
@@ -371,18 +421,18 @@ func (w *Wator) DebugPrint() {
 
 func (w *Wator) Direction(start, end int) int {
 
-	if start == end {
-		return MOVE_NONE
-	}
-	if end == (start + 1) {
-		return MOVE_EAST
-	}
-	if end == (start - 1) {
-		return MOVE_WEST
-	}
-	if start < end {
-		return MOVE_NORTH
-	}
-	return MOVE_SOUTH
+	north, south, west, east := w.adjacents(start)
 
+	switch end {
+	case north:
+		return MOVE_NORTH
+	case west:
+		return MOVE_WEST
+	case east:
+		return MOVE_EAST
+	case south:
+		return MOVE_SOUTH
+	}
+
+	return MOVE_NONE
 }

@@ -35,9 +35,9 @@ var (
 	height      = flag.Int("height", 24, "number of tiles verticals (rows)")
 )
 
-// Tile is a position on the screen corresponding to the position of the Wa-tor
+// Frame is a position on the screen corresponding to the position of the Wa-tor
 // world.
-type Tile struct {
+type Frame struct {
 	sprite    int
 	tileType  int
 	x, y      float64
@@ -47,15 +47,17 @@ type Tile struct {
 // Game holds the game state.  For Ebiten, this needs to be an ebiten.Game
 // interface.
 type Game struct {
-	world        wator.Wator
-	tileMap      []Tile
-	sharkSprite  []*ebiten.Image
-	fishSprite   []*ebiten.Image
-	pause        bool
-	frames       [][]Tile
-	frameCounter int
-	speedTPS     int
-	pixelsMove   int
+	world            wator.Wator
+	currentScreen    []Frame
+	sharkSprite      []*ebiten.Image
+	fishSprite       []*ebiten.Image
+	pause            bool
+	frames           [][]Frame
+	ctickCounter     int
+	drawFrameCounter int
+	tpsPerChronon    int
+	tpsPerFrame      int
+	pixelsMove       int
 }
 
 func (g *Game) AnimationSteps() int {
@@ -67,8 +69,9 @@ func (g *Game) AnimationSteps() int {
 // If called again, it will reset the map and re-seed.
 func (g *Game) Init(numfish, numshark, width, height int) {
 
-	g.speedTPS = 10
+	g.tpsPerChronon = 60
 	g.pixelsMove = 4
+	g.tpsPerFrame = 8
 
 	// Set up the sprites.
 	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps())
@@ -95,21 +98,18 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
 		log.Fatal(err.Error())
 	}
-	/*
-	   ws := g.world.Update()
-	   g.tileMap = g.StateToTiles(ws.Current)
-	   g.frames = append(g.frames, g.StateToTiles(ws.Current))
-	*/
+	ws := g.world.Update()
+	g.currentScreen = g.StateToFrame(ws.Current)
 }
 
-// StateToTiles converts the positions of the Wa-tor to the set of tiles
+// StateToFrame converts the positions of the Wa-tor to the set of tiles
 // that can buse used to give a visual repesentation on the screen.
-func (g *Game) StateToTiles(w wator.WorldState) []Tile {
+func (g *Game) StateToFrame(w wator.WorldState) []Frame {
 
-	tiles := make([]Tile, len(w))
+	tiles := make([]Frame, len(w))
 	for i := 0; i < len(w); i++ {
 		x, y := g.TileCoordinate(i)
-		tiles = append(tiles, Tile{
+		tiles = append(tiles, Frame{
 			sprite:   0,
 			tileType: w[i],
 			x:        x,
@@ -119,16 +119,18 @@ func (g *Game) StateToTiles(w wator.WorldState) []Tile {
 	return tiles
 }
 
-// DeltaToTiles generates intermediate tile maps to animate the movement of
+// DeltaToFrames generates intermediate tile maps to animate the movement of
 // fishes and sharks so that it doesn't look like they teleported between
 // tiles.
-func (g *Game) DeltaToTiles(delta []wator.Delta) {
+func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 
 	var dir int
-	steps := g.AnimationSteps() + 1
-	for i := 1; i < steps; i++ {
+	steps := g.AnimationSteps()
+	//fmt.Printf("steps = %d\n", steps)
+	var frames [][]Frame
+	for i := 0; i < steps; i++ {
 		offset := float64(i * g.pixelsMove)
-		tile := make([]Tile, g.world.Height*g.world.Width)
+		frame := make([]Frame, g.world.Height*g.world.Width)
 		for _, d := range delta {
 			x, y := g.TileCoordinate(d.From)
 
@@ -149,18 +151,19 @@ func (g *Game) DeltaToTiles(delta []wator.Delta) {
 				continue
 			}
 
-			tile[d.From] = Tile{
-				sprite:    i - 1,
+			frame[d.From] = Frame{
+				sprite:    i,
 				tileType:  d.Object,
 				x:         x,
 				y:         y,
 				direction: dir,
 			}
 		}
-		g.frames = append(g.frames, tile)
+		frames = append(frames, frame)
 	}
 
-	return
+	//fmt.Printf("Animation frames = %d\n", len(frames))
+	return frames
 }
 
 // TileCoordinate converts the map tile index to the logical location (row, col)
@@ -173,8 +176,8 @@ func (g *Game) TileCoordinate(idx int) (float64, float64) {
 	return float64(col), float64(row)
 }
 
-// RenderMap will paint the world and the creatures to the screen.
-func (g *Game) RenderMap(screen *ebiten.Image, m []Tile) {
+// DrawFrame will paint the world and the creatures to the screen.
+func (g *Game) DrawFrame(screen *ebiten.Image, m []Frame) {
 	opts := &ebiten.DrawImageOptions{}
 
 	for _, t := range m {
@@ -226,24 +229,40 @@ func (g *Game) Update() error {
 		g.pause = !g.pause
 	}
 
-	// Don't advance the world every update because that moves too fast
-	// for users to see the changes each Chronon.
-	g.frameCounter++
-	if g.frameCounter < g.speedTPS {
-		return nil
-	}
-	g.frameCounter = 0
-
 	if !g.pause {
-		worldStates := g.world.Update()
-		delta := worldStates.ChangeLog
-		g.DeltaToTiles(delta)
-		g.frames = append(g.frames, g.StateToTiles(worldStates.Current))
-		//g.tileMap = g.StateToTiles(worldStates.Current)
+		g.ctickCounter++
+		g.drawFrameCounter++
+
+		//fmt.Printf("Update Counter = %d Draw Counter = %d\n", g.ctickCounter, g.drawFrameCounter)
+		if g.drawFrameCounter%g.tpsPerFrame == 0 {
+			g.drawFrameCounter = 0
+			if len(g.frames) > 0 {
+				//fmt.Printf("size of g.frames = %d\n", len(g.frames))
+				//fmt.Println("Updating currentScreen")
+				g.currentScreen = g.frames[0]
+				g.frames = g.frames[1:]
+			}
+
+			if len(g.frames) == 0 {
+				//fmt.Println("g.frame size is 0!")
+				//g.world.DebugPrint()
+			}
+		}
+
+		// Don't advance the world every update because that moves too fast
+		// for users to see the changes each Chronon.
+		if g.ctickCounter%g.tpsPerChronon == 0 {
+			g.ctickCounter = 0
+			// Advance the world 1 chronon and get the delta
+			worldStates := g.world.Update()
+			delta := worldStates.ChangeLog
+			// first frame is the state of the world
+			g.frames = append(g.frames, g.StateToFrame(worldStates.Previous))
+			for _, f := range g.DeltaToFrames(delta) {
+				g.frames = append(g.frames, f)
+			}
+		}
 	}
-	//if g.world.Chronon == 2 {
-	//		log.Fatal()
-	//}
 
 	return nil
 }
@@ -263,13 +282,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	ebitenutil.DebugPrint(screen, strconv.FormatUint(uint64(g.world.Chronon), 10))
 
-	if len(g.frames) == 0 {
-		g.RenderMap(screen, g.tileMap)
-		return
-	}
-	g.RenderMap(screen, g.frames[0])
-	g.frames = g.frames[1:]
-
+	g.DrawFrame(screen, g.currentScreen)
 }
 
 // Layout is the logical screen size which can be different from the actual

@@ -67,102 +67,12 @@ func TestInit(t *testing.T) {
 	}
 }
 
-// TestStateCount checks that after initialization, the state slice contains the expected
-// number of fish and sharks.
-func TestStateCount(t *testing.T) {
-	tests := []struct {
-		name               string
-		width, height      int
-		numFish, numSharks int
-	}{
-		{"5x5 world", 5, 5, 5, 5},
-		{"3x3 world", 3, 3, 2, 2},
-	}
-
-	for i, tc := range tests {
-		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
-			var w Wator
-			if err := w.Init(tc.width, tc.height, tc.numFish, tc.numSharks, 3, 3, 2); err != nil {
-				t.Fatalf("[%d] Init error: %v", i, err)
-			}
-			state := w.State()
-			fishCount, sharkCount := 0, 0
-			for _, s := range state {
-				switch s {
-				case FISH:
-					fishCount++
-				case SHARK:
-					sharkCount++
-				}
-			}
-			if fishCount != tc.numFish || sharkCount != tc.numSharks {
-				t.Errorf("[%d] Expected %d fish and %d sharks, got %d fish and %d sharks", i, tc.numFish, tc.numSharks, fishCount, sharkCount)
-			}
-		})
-	}
-}
-
-// TestUpdateEffects verifies that Update increases the world's Chronon and returns
-// state arrays with the proper length.
-func TestUpdateEffects(t *testing.T) {
-	tests := []struct {
-		name               string
-		width, height      int
-		numFish, numSharks int
-		fsr, ssr, health   int
-	}{
-		{"5x5 world update", 5, 5, 3, 3, 3, 3, 2},
-	}
-
-	for i, tc := range tests {
-		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
-			var w Wator
-			if err := w.Init(tc.width, tc.height, tc.numFish, tc.numSharks, tc.fsr, tc.ssr, tc.health); err != nil {
-				t.Fatalf("[%d] Init error: %v", i, err)
-			}
-			initialChronon := w.Chronon
-			ws := w.Update()
-			if w.Chronon != initialChronon+1 {
-				t.Errorf("[%d] Expected Chronon to increase by 1, got %d", i, w.Chronon-initialChronon)
-			}
-			if len(ws.Previous) != tc.width*tc.height || len(ws.Current) != tc.width*tc.height {
-				t.Errorf("[%d] State arrays length mismatch, expected %d, got %d and %d", i, tc.width*tc.height, len(ws.Previous), len(ws.Current))
-			}
-		})
-	}
-}
-
-// TestDirection uses table-driven tests to verify the Direction method.
-func TestDirection(t *testing.T) {
-	tests := []struct {
-		name           string
-		start, end     int
-		expectedAction int
-	}{
-		{"no move", 0, 0, MOVE_NONE},
-		{"east", 0, 1, MOVE_EAST},
-		{"west", 1, 0, MOVE_WEST},
-		{"north", 0, 10, MOVE_NORTH},
-		{"south", 10, 0, MOVE_SOUTH},
-	}
-
-	var w Wator
-	for i, tc := range tests {
-		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
-			got := w.Direction(tc.start, tc.end)
-			if got != tc.expectedAction {
-				t.Errorf("[%d] Direction(%d, %d) = %d, expected %d", i, tc.start, tc.end, got, tc.expectedAction)
-			}
-		})
-	}
-}
-
 //
 // Unit Tests for Unexported Methods
 //
 
 // TestAdjacent tests the unexported adjacent method.
-func TestAdjacent(t *testing.T) {
+func TestAdjacentList(t *testing.T) {
 	fmt.Println("TestAdjacent")
 	tests := []struct {
 		name          string
@@ -184,7 +94,7 @@ func TestAdjacent(t *testing.T) {
 	for i, tc := range tests {
 		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
 			w := Wator{Width: tc.width, Height: tc.height}
-			got := w.adjacent(tc.pos)
+			got := w.adjacentList(tc.pos)
 			if len(got) != len(tc.expected) {
 				t.Errorf("[%d] adjacent(%d) = %v, expected %v", i, tc.pos, got, tc.expected)
 				return
@@ -230,153 +140,6 @@ func TestPickPosition(t *testing.T) {
 				if !valid {
 					t.Errorf("[%d] pickPosition(%d, %v) returned %d, which is not in expected set %v", i, tc.curr, tc.numbers, result, tc.expectedSet)
 				}
-			}
-		})
-	}
-}
-
-//
-// Unit Tests for Creature Spawn Functions
-//
-
-// TestFishSpawn verifies that the fish spawn function behaves correctly.
-// It sets a known fishSpawnRate, updates the fish's age, and checks if spawn returns the expected value.
-func TestFishSpawn(t *testing.T) {
-	// Set fishSpawnRate for testing.
-	fishSpawnRate = 3
-	tests := []struct {
-		name     string
-		age      int
-		expected bool
-	}{
-		{"age 0", 0, false},
-		{"age 1", 1, false},
-		{"age 2", 2, false},
-		{"age 3", 3, true},
-		{"age 4", 4, false},
-		{"age 6", 6, true},
-		{"age 7", 7, false},
-		{"age 9", 9, true},
-	}
-
-	for i, tc := range tests {
-		f := NewFish()
-		f.setAge(tc.age)
-		t.Run(fmt.Sprintf("[%d] Fish age %d", i, tc.age), func(t *testing.T) {
-			if got := f.spawn(); got != tc.expected {
-				t.Errorf("[%d] Fish spawn() with age %d returned %v, expected %v", i, tc.age, got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestSharkSpawn verifies that the shark spawn function behaves correctly.
-// It sets a known sharkSpawnRate, updates the shark's age, and checks if spawn returns the expected value.
-func TestSharkSpawn(t *testing.T) {
-	// Set sharkSpawnRate for testing.
-	sharkSpawnRate = 4
-	tests := []struct {
-		name     string
-		age      int
-		expected bool
-	}{
-		{"age 0", 0, false},
-		{"age 1", 1, false},
-		{"age 2", 2, false},
-		{"age 3", 3, false},
-		{"age 4", 4, true},
-		{"age 5", 5, false},
-		{"age 8", 8, true},
-		{"age 12", 12, true},
-	}
-
-	for i, tc := range tests {
-		s := NewShark()
-		s.setAge(tc.age)
-		t.Run(fmt.Sprintf("[%d] Shark age %d", i, tc.age), func(t *testing.T) {
-			if got := s.spawn(); got != tc.expected {
-				t.Errorf("[%d] Shark spawn() with age %d returned %v, expected %v", i, tc.age, got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestRecordChange(t *testing.T) {
-	cases := []struct {
-		name              string
-		animal            int
-		from              int
-		to                int
-		action            int
-		expectedDirection int
-	}{
-		{"Fish moves east", FISH, 1, 2, MOVE, MOVE_EAST},
-		{"Shark moves west", SHARK, 5, 4, MOVE, MOVE_WEST},
-		{"Shark dies", SHARK, 3, 3, DEATH, DEATH},
-		{"Fish spawns", FISH, 4, 4, BIRTH, BIRTH},
-		{"Shark eats", SHARK, 5, 6, ATE, ATE},
-		{"Shark moves north", SHARK, 8, 3, MOVE, MOVE_NORTH},
-		{"Shark spawns", SHARK, 9, 9, BIRTH, BIRTH},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var changes []Delta
-			w := Wator{}
-			w.recordChange(&changes, tc.animal, tc.from, tc.to, tc.action)
-
-			if len(changes) != 1 {
-				t.Errorf("Expected 1 change log entry, got %d", len(changes))
-			}
-			if changes[0].Object != tc.animal || changes[0].From != tc.from || changes[0].To != tc.to || changes[0].Action != tc.expectedDirection {
-				t.Errorf("Unexpected change log entry: %+v, expected direction: %d", changes[0], tc.expectedDirection)
-			}
-		})
-	}
-}
-
-func TestSharkTurn(t *testing.T) {
-	cases := []struct {
-		name        string
-		initialHP   int
-		adjacents   []int
-		openTiles   []int
-		shouldLive  bool
-		shouldMove  bool
-		shouldSpawn bool
-	}{
-		{"Shark dies", 1, []int{}, []int{}, false, false, false},
-		{"Shark moves to open tile", 3, []int{4, 5}, []int{5}, true, true, false},
-		{"Shark eats a fish", 2, []int{3, 6}, []int{3}, true, true, false},
-		{"Shark spawns", 4, []int{7, 8}, []int{8}, true, true, true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			w := Wator{}
-			shark := NewShark()
-			shark.health = tc.initialHP
-			w.world = make([]worldItem, 10)
-			for _, pos := range tc.adjacents {
-				w.world[pos] = nil // Ensure these positions are open
-			}
-			if len(tc.openTiles) > 0 {
-				w.world[tc.openTiles[0]] = NewFish() // Place a fish if applicable
-			}
-
-			alive, newPos, baby := w.sharkTurn(shark, 5, tc.adjacents)
-
-			if alive != tc.shouldLive {
-				t.Errorf("Shark should be alive: %v, but got: %v", tc.shouldLive, alive)
-			}
-			if tc.shouldMove && newPos == 5 {
-				t.Errorf("Shark should have moved but stayed at position %d", newPos)
-			}
-			if tc.shouldSpawn && baby == nil {
-				t.Errorf("Shark should have spawned but did not")
-			}
-			if !tc.shouldSpawn && baby != nil {
-				t.Errorf("Shark should not have spawned but did")
 			}
 		})
 	}

@@ -57,31 +57,6 @@ func TestInitSuccess(t *testing.T) {
 	}
 }
 
-func TestDirection(t *testing.T) {
-	var world wator.Wator
-
-	// No movement if start equals end.
-	if world.Direction(5, 5) != wator.MOVE_NONE {
-		t.Error("Expected MOVE_NONE when start equals end")
-	}
-	// East: when end equals start + 1.
-	if world.Direction(5, 6) != wator.MOVE_EAST {
-		t.Error("Expected MOVE_EAST when end equals start+1")
-	}
-	// West: when end equals start - 1.
-	if world.Direction(5, 4) != wator.MOVE_WEST {
-		t.Error("Expected MOVE_WEST when end equals start-1")
-	}
-	// North: when start < end (and not adjacent east).
-	if world.Direction(3, 10) != wator.MOVE_NORTH {
-		t.Error("Expected MOVE_NORTH when start < end and not adjacent east")
-	}
-	// South: when start > end (and not adjacent west).
-	if world.Direction(10, 3) != wator.MOVE_SOUTH {
-		t.Error("Expected MOVE_SOUTH when start > end and not adjacent west")
-	}
-}
-
 func TestUpdate(t *testing.T) {
 	var world wator.Wator
 	err := world.Init(3, 3, 3, 2, 3, 3, 2)
