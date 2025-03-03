@@ -1,5 +1,9 @@
 package wator
 
+import (
+	"math/rand"
+)
+
 var sharkID int
 
 type creature struct {
@@ -48,6 +52,37 @@ func (s *shark) spawn() bool {
 	return false
 }
 
+func (s *shark) move(pos int, world []worldItem, adjacents []int) int {
+
+	var openTiles []int
+	// Shark cannot move to tiles that have other sharks
+	for j := 0; j < len(adjacents); j++ {
+		switch world[adjacents[j]].(type) {
+		case *fish:
+			// If there is a fish, go to that position.
+			openTiles = nil
+			openTiles = append(openTiles, adjacents[j])
+			break
+		case nil:
+			openTiles = append(openTiles, adjacents[j])
+		}
+	}
+
+	return pickPosition(pos, openTiles)
+
+}
+
+func (s *shark) starve() int {
+
+	s.health--
+
+	return s.health
+}
+
+func (s *shark) feed() {
+	s.health = sharkHealth
+}
+
 type fish struct {
 	creature
 }
@@ -64,4 +99,27 @@ func (f *fish) spawn() bool {
 		return true
 	}
 	return false
+}
+
+func (f *fish) move(pos int, world []worldItem, adjacents []int) int {
+
+	var openTiles []int
+	// Fish can only move to non-occupied squares.
+	for j := 0; j < len(adjacents); j++ {
+		if world[adjacents[j]] == nil {
+			openTiles = append(openTiles, adjacents[j])
+		}
+	}
+
+	return pickPosition(pos, openTiles)
+
+}
+
+// pickPosition randomly picks the element from the given slice.
+func pickPosition(curr int, numbers []int) int {
+
+	if len(numbers) == 0 {
+		return curr
+	}
+	return numbers[rand.Intn(len(numbers))]
 }

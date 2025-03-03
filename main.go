@@ -5,11 +5,9 @@ package main // package lazyhacker.dev/wa-tor
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"image/color"
 	"log"
-	"math"
 	"strconv"
 
 	"lazyhacker.dev/wa-tor/internal/wator"
@@ -97,10 +95,11 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
 		log.Fatal(err.Error())
 	}
-
-	ws := g.world.Update()
-	g.tileMap = g.StateToTiles(ws.Current)
-	g.frames = append(g.frames, g.StateToTiles(ws.Current))
+	/*
+	   ws := g.world.Update()
+	   g.tileMap = g.StateToTiles(ws.Current)
+	   g.frames = append(g.frames, g.StateToTiles(ws.Current))
+	*/
 }
 
 // StateToTiles converts the positions of the Wa-tor to the set of tiles
@@ -181,32 +180,34 @@ func (g *Game) RenderMap(screen *ebiten.Image, m []Tile) {
 	for _, t := range m {
 		opts.GeoM.Reset()
 		opts.GeoM.Translate(t.x, t.y)
-		switch t.direction {
-		case NORTH:
-			// Move the image's center to the screen's upper-left corner.
-			// This is a preparation for rotating. When geometry matrices are applied,
-			// the origin point is the upper-left corner.
-			opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
+		/*
+			switch t.direction {
+			case NORTH:
+				// Move the image's center to the screen's upper-left corner.
+				// This is a preparation for rotating. When geometry matrices are applied,
+				// the origin point is the upper-left corner.
+				opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
 
-			// Rotate the image. As a result, the anchor point of this rotate is
-			// the center of the image.
-			opts.GeoM.Rotate(float64(270%360) * 2 * math.Pi / 360)
-			opts.GeoM.Translate(t.x, t.y)
-			fmt.Println("North")
-		case SOUTH:
-			fmt.Println("SOUTH")
-			opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
-			opts.GeoM.Rotate(float64(90%360) * 2 * math.Pi / 360)
-			opts.GeoM.Translate(t.x, t.y)
+				// Rotate the image. As a result, the anchor point of this rotate is
+				// the center of the image.
+				opts.GeoM.Rotate(float64(270%360) * 2 * math.Pi / 360)
+				opts.GeoM.Translate(t.x, t.y)
+				//fmt.Println("North")
+			case SOUTH:
+				//fmt.Println("SOUTH")
+				opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
+				opts.GeoM.Rotate(float64(90%360) * 2 * math.Pi / 360)
+				opts.GeoM.Translate(t.x, t.y)
 
-		case EAST:
-			fmt.Println("Moving EAST")
-		case WEST:
-			fmt.Println("WEST")
-			opts.GeoM.Translate(t.x+TileSize, 0)
-			opts.GeoM.Scale(-1, 1)
+			case EAST:
+				//fmt.Println("Moving EAST")
+			case WEST:
+				//fmt.Println("WEST")
+				//opts.GeoM.Translate(t.x+TileSize, 0)
+				//opts.GeoM.Scale(-1, 1)
 
-		}
+			}
+		*/
 		switch t.tileType {
 		case wator.FISH:
 			screen.DrawImage(g.fishSprite[t.sprite], opts)
@@ -238,8 +239,11 @@ func (g *Game) Update() error {
 		delta := worldStates.ChangeLog
 		g.DeltaToTiles(delta)
 		g.frames = append(g.frames, g.StateToTiles(worldStates.Current))
-		g.tileMap = g.StateToTiles(worldStates.Current)
+		//g.tileMap = g.StateToTiles(worldStates.Current)
 	}
+	//if g.world.Chronon == 2 {
+	//		log.Fatal()
+	//}
 
 	return nil
 }
@@ -251,6 +255,12 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.Fill(color.RGBA{120, 180, 255, 255})
+	for x := 0; x < g.world.Width*TileSize; x += TileSize {
+		ebitenutil.DrawLine(screen, float64(x), 0, float64(x), float64(g.world.Height*TileSize), color.White)
+	}
+	for y := 0; y < g.world.Height*TileSize; y += TileSize {
+		ebitenutil.DrawLine(screen, 0, float64(y), float64(g.world.Width*TileSize), float64(y), color.White)
+	}
 	ebitenutil.DebugPrint(screen, strconv.FormatUint(uint64(g.world.Chronon), 10))
 
 	if len(g.frames) == 0 {
@@ -278,13 +288,15 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 func main() {
 	flag.Parse()
 	ebiten.SetWindowSize(TileSize**width, TileSize**height)
+	//	ebiten.SetWindowSize(320, 240)
+
 	ebiten.SetWindowTitle("Wa-Tor")
 	ebiten.SetWindowResizable(true)
 
-	wator := &Game{}
-	wator.Init(*startFish, *startSharks, *width, *height)
+	game := &Game{}
+	game.Init(*startFish, *startSharks, *width, *height)
 
-	if err := ebiten.RunGame(wator); err != nil {
+	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }

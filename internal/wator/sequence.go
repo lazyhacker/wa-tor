@@ -2,7 +2,6 @@ package wator
 
 import (
 	"math/rand"
-	"time"
 )
 
 type sequence struct {
@@ -15,7 +14,6 @@ func (s *sequence) init(size int) {
 	for i := 0; i < size; i++ {
 		s.seq[i] = int(i)
 	}
-	rand.Seed(time.Now().UnixNano())
 
 	// Shuffle the sequence
 	rand.Shuffle(len(s.seq), func(i, j int) {

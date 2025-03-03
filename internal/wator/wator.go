@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"time"
 )
 
 const (
@@ -162,99 +161,49 @@ func (w *Wator) Update() WorldStates {
 
 		// find adjacent positions
 		adjacents := w.adjacent(i)
-		var openTiles []int
-		var newPos int
+		newPos := i
 		switch c := tile.(type) {
 		case *fish:
-			// Fish can only move to non-occupied squares.
-			for j := 0; j < len(adjacents); j++ {
-				if w.world[adjacents[j]] == nil {
-					openTiles = append(openTiles, adjacents[j])
-				}
-			}
+			var f *fish
+			newPos, f = w.fishTurn(c, i, adjacents)
 
-			newPos = w.pickPosition(i, openTiles)
-			// TODO: This can be refactored to use an interface method
-			// and not repeat similar behavior with shark.
-			/*
-				if c.spawn() {
-					// Put the spawn at the new position because it will
-					// then get swapped before the turn is completed and
-					// end up in the current position.
-					w.world[newPos] = NewFish()
-					w.world[newPos].setLastMove(w.Chronon)
-					delta = append(delta, Delta{
-						Object: FISH,
-						From:   i,
-						To:     i,
-						Action: BIRTH,
-					})
-				}
-			*/
-			delta = append(delta, Delta{
-				Object: FISH,
-				From:   i,
-				To:     newPos,
-				Action: w.Direction(i, newPos),
-			})
+			// Fish can only move to non-occupied squares.
+			if f != nil {
+				// Put the spawn at the new position because it will
+				// then get swapped before the turn is completed and
+				// end up in the current position.
+				w.world[newPos] = f
+				w.world[newPos].setLastMove(w.Chronon)
+				w.recordChange(&delta, FISH, i, i, BIRTH)
+			}
+			w.recordChange(&delta, FISH, i, newPos, MOVE)
 
 		case *shark:
 
+			var s *shark
+			var alive bool
+			alive, newPos, s = w.sharkTurn(c, i, adjacents)
 			// If shark doesn't eat, it dies.
-			(*c).health--
-			if (*c).health == 0 {
+			if !alive {
 				w.world[i] = nil
-				delta = append(delta, Delta{
-					Object: SHARK,
-					From:   i,
-					To:     i,
-					Action: DEATH,
-				})
+				w.recordChange(&delta, SHARK, i, i, DEATH)
 				continue
 			}
 
-			// Shark cannot move to tiles that have other sharks
-			for j := 0; j < len(adjacents); j++ {
-				switch w.world[adjacents[j]].(type) {
-				case *fish:
-					// If there is a fish, go to that position.
-					openTiles = nil
-					openTiles = append(openTiles, adjacents[j])
-					continue
-				case nil:
-					openTiles = append(openTiles, adjacents[j])
-				}
-			}
+			w.recordChange(&delta, SHARK, i, newPos, MOVE)
 
-			newPos = w.pickPosition(i, openTiles)
-			delta = append(delta, Delta{
-				Object: SHARK,
-				From:   i,
-				To:     newPos,
-				Action: w.Direction(i, newPos),
-			})
 			if _, ok := w.world[newPos].(*fish); ok {
-				(*c).health = sharkHealth + 1
 				w.world[newPos] = nil
-				delta = append(delta, Delta{
-					Object: SHARK,
-					From:   i,
-					To:     newPos,
-					Action: ATE,
-				})
+				w.recordChange(&delta, SHARK, i, newPos, ATE)
 			}
-			if c.spawn() {
-				w.world[newPos] = NewShark()
+			if s != nil {
+				w.world[newPos] = s
 				w.world[newPos].setLastMove(w.Chronon)
-				delta = append(delta, Delta{
-					Object: SHARK,
-					From:   i,
-					To:     i,
-					Action: BIRTH,
-				})
+				w.recordChange(&delta, SHARK, i, i, BIRTH)
 			}
 		}
 
+		//fmt.Printf("Start=%d, End=%d\n", i, newPos)
 		if newPos != i {
 			// Move the creature by swapping its current location with new position
 			w.world[newPos], w.world[i] = w.world[i], w.world[newPos]
@@ -262,6 +211,8 @@ func (w *Wator) Update() WorldStates {
 
 		tile.setAge(tile.age() + 1)
 	}
+	//fmt.Printf("World at end of Update:\n")
+	//w.DebugPrint()
 
 	current := w.State()
 
@@ -270,6 +221,66 @@ func (w *Wator) Update() WorldStates {
 		Current:   current,
 		ChangeLog: delta,
 	}
+}
+
+// fishTurns handles the action of a fish each turn and returns its new position
+// and if it spawned a new fish.
+func (w *Wator) fishTurn(fish *fish, pos int, adjacents []int) (int, *fish) {
+
+	newPos := fish.move(pos, w.world, adjacents)
+	if fish.spawn() {
+		return newPos, NewFish()
+	}
+
+	return newPos, nil
+
+}
+
+func (w *Wator) sharkTurn(shark *shark, pos int, adjacents []int) (bool, int, *shark) {
+	// If shark doesn't eat, it dies.
+	if shark.starve() == 0 {
+		return false, pos, nil
+	}
+
+	newPos := shark.move(pos, w.world, adjacents)
+	if _, ok := w.world[newPos].(*fish); ok {
+		shark.feed()
+	}
+	if shark.spawn() {
+		return true, newPos, NewShark()
+	}
+
+	return true, newPos, nil
+
+}
+
+func (w *Wator) recordChange(changelog *[]Delta, animal, from, to, action int) {
+
+	if action == MOVE {
+		action = w.Direction(from, to)
+
+		/*
+			direction := ""
+			switch action {
+			case MOVE_NORTH:
+				direction = "NORTH"
+			case MOVE_SOUTH:
+				direction = "SOUTH"
+			case MOVE_EAST:
+				direction = "EAST"
+			case MOVE_WEST:
+				direction = "WEST"
+			}
+		*/
+	}
+
+	*changelog = append(*changelog, Delta{
+		Object: animal,
+		From:   from,
+		To:     to,
+		Action: action,
+	})
+
 }
 
 // State returns the snapshop of where each fish and shark is at on the map.
@@ -293,7 +304,11 @@ func (w *Wator) State() []int {
 // adjacent returns up, down, left, right tile locations from the position.
 func (w *Wator) adjacent(pos int) []int {
 
+	//row = pos / w.Width
+	//col = pos % w.Width
+
 	totalTiles := w.Width * w.Height
+
 	up := pos - w.Width
 	down := pos + w.Width
 	left := pos - 1
@@ -311,12 +326,12 @@ func (w *Wator) adjacent(pos int) []int {
 
 	// Check if it needs to go to wrap around to the end of the row.
 	if (right % w.Width) == 0 {
-		right -= w.Height
+		right -= w.Width
 	}
 
 	// Check if it needs to wrap around to the start of the row.
-	if (left % w.Width) < 0 {
-		left += w.Height
+	if left%w.Width == w.Width-1 || left < 0 {
+		left += w.Width
 	}
 
 	return []int{up, down, left, right}
@@ -328,7 +343,6 @@ func (w *Wator) pickPosition(curr int, numbers []int) int {
 	if len(numbers) == 0 {
 		return curr
 	}
-	rand.Seed(time.Now().UnixNano())
 	return numbers[rand.Intn(len(numbers))]
 }
 
