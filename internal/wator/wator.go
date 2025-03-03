@@ -228,7 +228,7 @@ func (w *Wator) Update() WorldStates {
 func (w *Wator) fishTurn(fish *fish, pos int, adjacents []int) (int, *fish) {
 
 	newPos := fish.move(pos, w.world, adjacents)
-	if fish.spawn() {
+	if fish.spawn() && newPos != pos {
 		return newPos, NewFish()
 	}
 
@@ -246,7 +246,9 @@ func (w *Wator) sharkTurn(shark *shark, pos int, adjacents []int) (bool, int, *s
 	if _, ok := w.world[newPos].(*fish); ok {
 		shark.feed()
 	}
-	if shark.spawn() {
+
+	// Cannot spawn if no open space.
+	if shark.spawn() && newPos != pos {
 		return true, newPos, NewShark()
 	}
 
