@@ -31,8 +31,8 @@ var (
 	fsr         = flag.Int("fish-spawn-rate", 30, "fish spawn rate")
 	ssr         = flag.Int("shark-spawn-rate", 50, "shark spawn rate")
 	health      = flag.Int("health", 30, "# of cycles shark can go with feeding before dying.")
-	width       = flag.Int("width", 32, "number of tiles horizontally (cols)")
-	height      = flag.Int("height", 24, "number of tiles verticals (rows)")
+	width       = flag.Int("width", 16, "number of tiles horizontally (cols)")
+	height      = flag.Int("height", 12, "number of tiles verticals (rows)")
 )
 
 // Frame is a position on the screen corresponding to the position of the Wa-tor
@@ -74,23 +74,38 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	g.tpsPerFrame = 8
 
 	// Set up the sprites.
-	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps())
-	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps())
+	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps()*2)
+	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps()*2)
 
 	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
 	if err != nil {
 		log.Fatalln("Unable to load shark image.")
 	}
-	for i := 0; i < 8; i++ {
+	for i := 0; i < g.AnimationSteps(); i++ {
 		g.sharkSprite[i] = ss.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 32)).(*ebiten.Image)
+	}
+
+	ss_r, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/SharkReverse.png")
+	if err != nil {
+		log.Fatalln("Unable to load reverse shark image.")
+	}
+	for i := 0; i < g.AnimationSteps(); i++ {
+		g.sharkSprite[i+g.AnimationSteps()] = ss_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 32)).(*ebiten.Image)
 	}
 
 	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
 	if err != nil {
 		log.Fatalln("Unable to load fish image.")
 	}
-	for i := 0; i < 8; i++ {
+	for i := 0; i < g.AnimationSteps(); i++ {
 		g.fishSprite[i] = fs.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
+	}
+	fs_r, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/OrangeReverse.png")
+	if err != nil {
+		log.Fatalln("Unable to load fish image.")
+	}
+	for i := 0; i < g.AnimationSteps(); i++ {
+		g.fishSprite[i+g.AnimationSteps()] = fs_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
 	}
 
 	// Initialize the world.
@@ -181,43 +196,17 @@ func (g *Game) DrawFrame(screen *ebiten.Image, m []Frame) {
 	opts := &ebiten.DrawImageOptions{}
 
 	for _, t := range m {
+		spriteIdx := t.sprite
 		opts.GeoM.Reset()
-
 		opts.GeoM.Translate(t.x, t.y)
-		/*
-			switch t.direction {
-			case NORTH:
-				// Move the image's center to the screen's upper-left corner.
-				// This is a preparation for rotating. When geometry matrices are applied,
-				// the origin point is the upper-left corner.
-				//opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
-
-				// Rotate the image. As a result, the anchor point of this rotate is
-				// the center of the image.
-				//opts.GeoM.Rotate(float64(270%360) * 2 * math.Pi / 360)
-				//opts.GeoM.Translate(t.x, t.y)
-				//fmt.Println("North")
-			case SOUTH:
-				//fmt.Println("SOUTH")
-				//opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
-				//opts.GeoM.Rotate(float64(90%360) * 2 * math.Pi / 360)
-				//opts.GeoM.Translate(t.x, t.y)
-			case EAST:
-				fmt.Println("Moving EAST")
-				//opts.GeoM.Translate(t.x, t.y)
-			case WEST:
-				fmt.Println("Moving WEST")
-
-				opts.GeoM.Scale(-1, 1)
-				opts.GeoM.Translate(float64(TileSize), 0)
-
-			}
-		*/
+		if t.direction == WEST {
+			spriteIdx += g.AnimationSteps()
+		}
 		switch t.tileType {
 		case wator.FISH:
-			screen.DrawImage(g.fishSprite[t.sprite], opts)
+			screen.DrawImage(g.fishSprite[spriteIdx], opts)
 		case wator.SHARK:
-			screen.DrawImage(g.sharkSprite[t.sprite], opts)
+			screen.DrawImage(g.sharkSprite[spriteIdx], opts)
 		}
 	}
 }
@@ -280,6 +269,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(screen, strconv.FormatUint(uint64(g.world.Chronon), 10))
 
 	g.DrawFrame(screen, g.currentScreen)
+
 }
 
 // Layout is the logical screen size which can be different from the actual
@@ -297,8 +287,8 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	flag.Parse()
-	ebiten.SetWindowSize(TileSize**width, TileSize**height)
-	//	ebiten.SetWindowSize(320, 240)
+	//ebiten.SetWindowSize(TileSize**width, TileSize**height)
+	ebiten.SetWindowSize(1024, 768)
 
 	ebiten.SetWindowTitle("Wa-Tor")
 	ebiten.SetWindowResizable(true)
