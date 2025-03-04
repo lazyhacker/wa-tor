@@ -1,5 +1,5 @@
-// Package wator is an implementation of the wa-tor simulation a.k. dewdney presented
-// in scientific america in 1984.
+// Package wator is an implementation of the wa-tor simulation that A.K. Dewdney
+// presented in Scientific America in 1984.
 //
 // # Usage:
 //
@@ -39,11 +39,11 @@ const (
 	MOVE_NONE         // No movement
 	MOVE_NORTH        // Movement above
 	MOVE_SOUTH        // Movement below
-	MOVE_EAST         //Movement right
-	MOVE_WEST         //Movement left
+	MOVE_EAST         // Movement right
+	MOVE_WEST         // Movement left
 	DEATH             // creature died
-	BIRTH             // new creature born
-	ATE               // creature ate
+	BIRTH             // New spawn
+	ATE               // Creature ate
 )
 
 var (
@@ -73,7 +73,9 @@ type Wator struct {
 }
 
 // Init will set up the world and populate the initial set of fish and shark
-// at random positions in the world.
+// at random positions in the world.  fsr and ssr are the rate by which fish
+// and sharks will spawn a new born.  health is the number of Chronon before
+// a shark dies if it hasn't eaten a fish.
 func (w *Wator) Init(width, height, numfish, numsharks, fsr, ssr, health int) error {
 
 	w.Width = width
@@ -197,7 +199,6 @@ func (w *Wator) Update() WorldStates {
 			}
 		}
 
-		//fmt.Printf("Start=%d, End=%d\n", i, newPos)
 		if newPos != i {
 			// Move the creature by swapping its current location with new position
 			w.world[newPos], w.world[i] = w.world[i], w.world[newPos]
@@ -205,8 +206,6 @@ func (w *Wator) Update() WorldStates {
 
 		tile.setAge(tile.age() + 1)
 	}
-	//fmt.Printf("World at end of Update:\n")
-	//w.DebugPrint()
 
 	current := w.State()
 

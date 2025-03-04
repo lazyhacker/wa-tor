@@ -117,7 +117,6 @@ func (f *fish) move(pos int, world []worldItem, adjacents []int) int {
 	}
 
 	return pickPosition(pos, openTiles)
-
 }
 
 // pickPosition randomly picks the element from the given slice.
