@@ -21,6 +21,8 @@ const (
 	SHARK        // Represents a shark in Wator.
 )
 
+// WorldState is the state of Wa-tor at a given Chronon.  The index is the world
+// position and the value is what is at the position.
 type WorldState []int
 
 // WorldStates contains the positions of every fish and shark on the map.
@@ -43,59 +45,6 @@ const (
 	BIRTH             // new creature born
 	ATE               // creature ate
 )
-
-// Delta describes the changes of a creature between two Chronon.
-type Delta struct {
-	Object int // type of creature: FISH, SHARK
-	From   int // position in previous Chronon
-	To     int // position in current Chronon
-	Action int // Action = NO_ACTION, MOVE, DEATH, BIRTH
-}
-
-func (d *Delta) Dump() {
-
-	var obj, action string
-
-	switch d.Object {
-
-	case NONE:
-		obj = "NONE"
-	case FISH:
-		obj = "FISH"
-	case SHARK:
-		obj = "SHARK"
-	default:
-		obj = "UNKNOWN"
-
-	}
-
-	switch d.Action {
-	case NO_ACTION:
-		action = "NO_ACTION"
-
-	case MOVE:
-		action = "MOVE"
-	case MOVE_NONE:
-		action = "MOVE_NONE"
-	case MOVE_NORTH:
-		action = "MOVE_NORTH"
-	case MOVE_SOUTH:
-		action = "MOVE_SOUTH"
-	case MOVE_EAST:
-		action = "MOVE_EAST"
-	case MOVE_WEST:
-		action = "MOVE_WEST"
-	case DEATH:
-		action = "DEATH"
-	case BIRTH:
-		action = "BIRTH"
-	case ATE:
-		action = "ATE"
-	}
-
-	fmt.Printf("Animal = %v from %d to %d Action=%v\n", obj, d.From, d.To, action)
-
-}
 
 var (
 	fishSpawnRate  int
@@ -281,6 +230,7 @@ func (w *Wator) fishTurn(fish *fish, pos int, adjacents []int) (int, *fish) {
 
 }
 
+// sharkTurn handles a shark's behavior each turn.
 func (w *Wator) sharkTurn(shark *shark, pos int, adjacents []int) (bool, int, *shark) {
 	// If shark doesn't eat, it dies.
 	if shark.starve() == 0 {
@@ -301,24 +251,12 @@ func (w *Wator) sharkTurn(shark *shark, pos int, adjacents []int) (bool, int, *s
 
 }
 
+// recordChange adds a change to the changelog and uses strings for animals and
+// actions instead of the numeric values.
 func (w *Wator) recordChange(changelog *[]Delta, animal, from, to, action int) {
 
 	if action == MOVE {
-		action = w.Direction(from, to)
-
-		/*
-			direction := ""
-			switch action {
-			case MOVE_NORTH:
-				direction = "NORTH"
-			case MOVE_SOUTH:
-				direction = "SOUTH"
-			case MOVE_EAST:
-				direction = "EAST"
-			case MOVE_WEST:
-				direction = "WEST"
-			}
-		*/
+		action = w.direction(from, to)
 	}
 
 	*changelog = append(*changelog, Delta{
@@ -327,7 +265,6 @@ func (w *Wator) recordChange(changelog *[]Delta, animal, from, to, action int) {
 		To:     to,
 		Action: action,
 	})
-
 }
 
 // State returns the snapshop of where each fish and shark is at on the map.
@@ -348,13 +285,14 @@ func (w *Wator) State() []int {
 	return wm
 }
 
-// adjacentList returns up, down, left, right tile locations from the position.
+// adjacentList returns the for adjacent positions a slice.
 func (w *Wator) adjacentList(pos int) []int {
 
 	up, down, left, right := w.adjacents(pos)
 	return []int{up, down, left, right}
 }
 
+// adjacents returns the four positions next to a given point.
 func (w *Wator) adjacents(pos int) (up, down, left, right int) {
 	//row = pos / w.Width
 	//col = pos % w.Width
@@ -398,6 +336,27 @@ func (w *Wator) pickPosition(curr int, numbers []int) int {
 	return numbers[rand.Intn(len(numbers))]
 }
 
+// direction returns the relative direction of the end position to the start
+// position.
+func (w *Wator) direction(start, end int) int {
+
+	north, south, west, east := w.adjacents(start)
+
+	switch end {
+	case north:
+		return MOVE_NORTH
+	case west:
+		return MOVE_WEST
+	case east:
+		return MOVE_EAST
+	case south:
+		return MOVE_SOUTH
+	}
+
+	return MOVE_NONE
+}
+
+// DebugPrint will print out the state of the world.
 func (w *Wator) DebugPrint() {
 
 	for i, _ := range w.world {
@@ -417,22 +376,4 @@ func (w *Wator) DebugPrint() {
 
 	fmt.Println()
 
-}
-
-func (w *Wator) Direction(start, end int) int {
-
-	north, south, west, east := w.adjacents(start)
-
-	switch end {
-	case north:
-		return MOVE_NORTH
-	case west:
-		return MOVE_WEST
-	case east:
-		return MOVE_EAST
-	case south:
-		return MOVE_SOUTH
-	}
-
-	return MOVE_NONE
 }

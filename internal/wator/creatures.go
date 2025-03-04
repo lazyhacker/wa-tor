@@ -4,11 +4,9 @@ import (
 	"math/rand"
 )
 
-var sharkID int
-
 type creature struct {
-	chronon int
-	turn    uint
+	chronon int  // age of the creature.
+	turn    uint // the chronon when it last moved.
 }
 
 func (c *creature) setAge(a int) {
@@ -28,22 +26,21 @@ func (c *creature) setLastMove(t uint) {
 	c.turn = t
 }
 
+// shark is the predetor on Wa-tor and feeds off fish.
 type shark struct {
 	health int
 	creature
-	id int
 }
 
+// NewShark returns a new instance of a Shark.
 func NewShark() *shark {
-	id := sharkID
-	sharkID++
 	return &shark{
 		sharkHealth,
 		creature{},
-		id,
 	}
 }
 
+// spawn returns whether it should spawn a new shark.
 func (s *shark) spawn() bool {
 
 	if s.chronon%sharkSpawnRate == 0 && s.chronon > 0 {
@@ -52,6 +49,7 @@ func (s *shark) spawn() bool {
 	return false
 }
 
+// move determines how a shark moves.
 func (s *shark) move(pos int, world []worldItem, adjacents []int) int {
 
 	var openTiles []int
@@ -72,6 +70,7 @@ func (s *shark) move(pos int, world []worldItem, adjacents []int) int {
 
 }
 
+// starve adjusts the health of a shark when it doesn't eat.
 func (s *shark) starve() int {
 
 	s.health--
@@ -79,20 +78,25 @@ func (s *shark) starve() int {
 	return s.health
 }
 
+// feed adjusts the shark's health when it eats a fish.
 func (s *shark) feed() {
 	s.health = sharkHealth
 }
 
+// fish is a creature of Wa-tor who eats the planktons in the water.  They
+// provide food to sharks.
 type fish struct {
 	creature
 }
 
+// NewFish returns a new instance of a fish.
 func NewFish() *fish {
 	return &fish{
 		creature{},
 	}
 }
 
+// spawn determines whether a new fish should spawn.
 func (f *fish) spawn() bool {
 
 	if f.chronon%fishSpawnRate == 0 && f.chronon > 0 {
@@ -101,6 +105,7 @@ func (f *fish) spawn() bool {
 	return false
 }
 
+// move handles the fish's movement.
 func (f *fish) move(pos int, world []worldItem, adjacents []int) int {
 
 	var openTiles []int
