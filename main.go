@@ -182,6 +182,7 @@ func (g *Game) DrawFrame(screen *ebiten.Image, m []Frame) {
 
 	for _, t := range m {
 		opts.GeoM.Reset()
+
 		opts.GeoM.Translate(t.x, t.y)
 		/*
 			switch t.direction {
@@ -189,25 +190,26 @@ func (g *Game) DrawFrame(screen *ebiten.Image, m []Frame) {
 				// Move the image's center to the screen's upper-left corner.
 				// This is a preparation for rotating. When geometry matrices are applied,
 				// the origin point is the upper-left corner.
-				opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
+				//opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
 
 				// Rotate the image. As a result, the anchor point of this rotate is
 				// the center of the image.
-				opts.GeoM.Rotate(float64(270%360) * 2 * math.Pi / 360)
-				opts.GeoM.Translate(t.x, t.y)
+				//opts.GeoM.Rotate(float64(270%360) * 2 * math.Pi / 360)
+				//opts.GeoM.Translate(t.x, t.y)
 				//fmt.Println("North")
 			case SOUTH:
 				//fmt.Println("SOUTH")
-				opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
-				opts.GeoM.Rotate(float64(90%360) * 2 * math.Pi / 360)
-				opts.GeoM.Translate(t.x, t.y)
-
+				//opts.GeoM.Translate(-float64(t.x)/2, -float64(t.y)/2)
+				//opts.GeoM.Rotate(float64(90%360) * 2 * math.Pi / 360)
+				//opts.GeoM.Translate(t.x, t.y)
 			case EAST:
-				//fmt.Println("Moving EAST")
+				fmt.Println("Moving EAST")
+				//opts.GeoM.Translate(t.x, t.y)
 			case WEST:
-				//fmt.Println("WEST")
-				//opts.GeoM.Translate(t.x+TileSize, 0)
-				//opts.GeoM.Scale(-1, 1)
+				fmt.Println("Moving WEST")
+
+				opts.GeoM.Scale(-1, 1)
+				opts.GeoM.Translate(float64(TileSize), 0)
 
 			}
 		*/
@@ -241,11 +243,6 @@ func (g *Game) Update() error {
 				//fmt.Println("Updating currentScreen")
 				g.currentScreen = g.frames[0]
 				g.frames = g.frames[1:]
-			}
-
-			if len(g.frames) == 0 {
-				//fmt.Println("g.frame size is 0!")
-				//g.world.DebugPrint()
 			}
 		}
 
