@@ -141,7 +141,6 @@ func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 
 	var dir int
 	steps := g.AnimationSteps()
-	//fmt.Printf("steps = %d\n", steps)
 	var frames [][]Frame
 	for i := 0; i < steps; i++ {
 		offset := float64(i * g.pixelsMove)
@@ -177,7 +176,6 @@ func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 		frames = append(frames, frame)
 	}
 
-	//fmt.Printf("Animation frames = %d\n", len(frames))
 	return frames
 }
 
@@ -224,7 +222,6 @@ func (g *Game) Update() error {
 		g.ctickCounter++
 		g.drawFrameCounter++
 
-		//fmt.Printf("Update Counter = %d Draw Counter = %d\n", g.ctickCounter, g.drawFrameCounter)
 		if g.drawFrameCounter%g.tpsPerFrame == 0 {
 			g.drawFrameCounter = 0
 			if len(g.frames) > 0 {
