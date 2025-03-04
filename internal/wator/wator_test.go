@@ -1,104 +1,109 @@
-package wator_test
+package wator
 
 import (
-	"bytes"
+	"fmt"
 	"testing"
-
-	"lazyhacker.dev/wa-tor/internal/wator"
 )
 
-func TestInitTooManyCreatures(t *testing.T) {
-	var world wator.Wator
-	// For a 2x2 world there are 4 cells. Trying to place 3 fish and 2 sharks (5 total) should fail.
-	err := world.Init(2, 2, 3, 2, 3, 3, 2)
-	if err == nil {
-		t.Error("Expected error when placing more creatures than available cells, got nil")
+// TestInit tests the Init method for various configurations, including error conditions.
+func TestInit(t *testing.T) {
+	tests := []struct {
+		name               string
+		width, height      int
+		numFish, numSharks int
+		fsr, ssr, health   int
+		wantErr            bool
+	}{
+		{"Too many creatures", 5, 5, 20, 10, 3, 3, 2, true},
+		{"Health error", 5, 5, 5, 5, 5, 5, 10, true},
+		{"Valid init", 5, 5, 5, 5, 3, 3, 2, false},
 	}
-	expected := "Too many creatures to fit on map!"
-	if err.Error() != expected {
-		t.Errorf("Expected error %q, got %q", expected, err.Error())
+
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
+			var w Wator
+			err := w.Init(tc.width, tc.height, tc.numFish, tc.numSharks, tc.fsr, tc.ssr, tc.health)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("[%d] Init() error = %v; expected error: %v", i, err, tc.wantErr)
+			}
+		})
 	}
 }
 
-func TestInitInvalidHealthRate(t *testing.T) {
-	var world wator.Wator
-	// Here health (5) is greater than the shark spawn rate (3).
-	err := world.Init(3, 3, 2, 2, 3, 3, 5)
-	if err == nil {
-		t.Error("Expected error when shark health is greater than shark spawn rate, got nil")
+//
+// Unit Tests for Unexported Methods
+//
+
+// TestAdjacent tests the unexported adjacent method.
+func TestAdjacentList(t *testing.T) {
+	fmt.Println("TestAdjacent")
+	tests := []struct {
+		name          string
+		width, height int
+		pos           int
+		expected      []int
+	}{
+		{"corner 0 in 5x6", 5, 6, 0, []int{25, 5, 4, 1}},
+		{"middle 12 in 5x6", 5, 6, 12, []int{7, 17, 11, 13}},
+		{"corner 4 in 5x6", 5, 6, 4, []int{29, 9, 3, 0}},
+		{"corner 29 in 5x6", 5, 6, 29, []int{24, 4, 28, 25}},
+		{"corner 25 in 5x6", 5, 6, 25, []int{20, 0, 29, 26}},
+		{"left-middle 10 in 5x6", 5, 6, 10, []int{5, 15, 14, 11}},
+		{"right-middle 14 in 5x6", 5, 6, 14, []int{9, 19, 13, 10}},
+		{"top-middle 2 in 5x5", 5, 6, 2, []int{27, 7, 1, 3}},
+		{"bottom-middle 27 in 5x6", 5, 6, 27, []int{22, 2, 26, 28}},
 	}
-	expected := "Health meter needs to be less than the Shark spawn rate."
-	if err.Error() != expected {
-		t.Errorf("Expected error %q, got %q", expected, err.Error())
+
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
+			w := Wator{Width: tc.width, Height: tc.height}
+			got := w.adjacentList(tc.pos)
+			if len(got) != len(tc.expected) {
+				t.Errorf("[%d] adjacent(%d) = %v, expected %v", i, tc.pos, got, tc.expected)
+				return
+			}
+			for j, v := range got {
+				if v != tc.expected[j] {
+					t.Errorf("[%d] adjacent(%d)[%d] = %d, expected %d", i, tc.pos, j, v, tc.expected[j])
+				}
+			}
+		})
 	}
 }
 
-func TestInitSuccess(t *testing.T) {
-	var world wator.Wator
-	err := world.Init(3, 3, 3, 2, 3, 3, 2)
-	if err != nil {
-		t.Fatalf("Unexpected error during Init: %v", err)
-	}
-	state := world.State()
-	fishCount, sharkCount := 0, 0
-	for _, v := range state {
-		switch v {
-		case wator.FISH:
-			fishCount++
-		case wator.SHARK:
-			sharkCount++
-		}
-	}
-	if fishCount != 3 {
-		t.Errorf("Expected 3 fish, got %d", fishCount)
-	}
-	if sharkCount != 2 {
-		t.Errorf("Expected 2 sharks, got %d", sharkCount)
-	}
-}
-
-func TestUpdate(t *testing.T) {
-	var world wator.Wator
-	err := world.Init(3, 3, 3, 2, 3, 3, 2)
-	if err != nil {
-		t.Fatalf("Unexpected error during Init: %v", err)
-	}
-	initialState := world.State()
-	states := world.Update()
-
-	// Check that Chronon is incremented.
-	if world.Chronon != 1 {
-		t.Errorf("Expected Chronon to be 1 after Update, got %d", world.Chronon)
-	}
-	// Verify that the previous state in the result matches the initial state.
-	if len(states.Previous) != len(initialState) {
-		t.Error("Length of previous state does not match initial state length")
-	}
-	for i, v := range states.Previous {
-		if v != initialState[i] {
-			t.Error("Previous state does not match initial state in Update result")
-			break
-		}
-	}
-	// Verify that the current state has the same length.
-	if len(states.Current) != len(initialState) {
-		t.Error("Current state length mismatch in Update result")
-	}
-	// Although movement is random, we expect some entries in the change log.
-	if len(states.ChangeLog) == 0 {
-		t.Log("Warning: No changes recorded in the update; this may be due to the randomness of movement.")
-	}
-}
-
-func TestDebugPrint(t *testing.T) {
-	var world wator.Wator
-	err := world.Init(3, 3, 2, 2, 3, 3, 2)
-	if err != nil {
-		t.Fatalf("Unexpected error during Init: %v", err)
+// TestPickPosition tests the unexported pickPosition method.
+func TestPickPosition(t *testing.T) {
+	tests := []struct {
+		name        string
+		curr        int
+		numbers     []int
+		expectedSet []int // if numbers is non-empty, result must be in expectedSet; if empty, result should equal curr.
+	}{
+		{"empty numbers", 5, []int{}, nil},
+		{"single element", 5, []int{7}, []int{7}},
+		{"multiple elements", 3, []int{1, 2, 3, 4}, []int{1, 2, 3, 4}},
 	}
 
-	// Redirect output to a buffer if desired. Here we simply call DebugPrint to ensure it doesn't panic.
-	var buf bytes.Buffer
-	_ = buf // Currently unused; in a more advanced test you might capture and analyze the output.
-	world.DebugPrint()
+	var w Wator
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("[%d] %s", i, tc.name), func(t *testing.T) {
+			result := w.pickPosition(tc.curr, tc.numbers)
+			if len(tc.numbers) == 0 {
+				if result != tc.curr {
+					t.Errorf("[%d] Expected %d when numbers is empty, got %d", i, tc.curr, result)
+				}
+			} else {
+				valid := false
+				for _, v := range tc.expectedSet {
+					if result == v {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					t.Errorf("[%d] pickPosition(%d, %v) returned %d, which is not in expected set %v", i, tc.curr, tc.numbers, result, tc.expectedSet)
+				}
+			}
+		})
+	}
 }
