@@ -225,8 +225,6 @@ func (g *Game) Update() error {
 		if g.drawFrameCounter%g.tpsPerFrame == 0 {
 			g.drawFrameCounter = 0
 			if len(g.frames) > 0 {
-				//fmt.Printf("size of g.frames = %d\n", len(g.frames))
-				//fmt.Println("Updating currentScreen")
 				g.currentScreen = g.frames[0]
 				g.frames = g.frames[1:]
 			}
@@ -239,8 +237,6 @@ func (g *Game) Update() error {
 			// Advance the world 1 chronon and get the delta
 			worldStates := g.world.Update()
 			delta := worldStates.ChangeLog
-			// first frame is the state of the world
-			g.frames = append(g.frames, g.StateToFrame(worldStates.Previous))
 			for _, f := range g.DeltaToFrames(delta) {
 				g.frames = append(g.frames, f)
 			}
