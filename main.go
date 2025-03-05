@@ -1,7 +1,7 @@
 // Wa-tor is an implementation of the Wa-Tor simulation A.K. Dewdney presented
 // in Scientific America in 1984.  This project is an exercise to learn Ebiten,
 // a 2D game engine for Go.
-package main // package lazyhacker.dev/wa-tor
+package main // package lazyhacker.dev/wator
 
 import (
 	"flag"
