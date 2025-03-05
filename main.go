@@ -8,13 +8,16 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"os"
 	"strconv"
 
+	"golang.org/x/image/font/basicfont"
 	"lazyhacker.dev/wa-tor/internal/wator"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
 )
 
 const (
@@ -58,6 +61,10 @@ type Game struct {
 	tpsPerChronon    int
 	tpsPerFrame      int
 	pixelsMove       int
+	startFish        int
+	startShark       int
+	width            int
+	height           int
 }
 
 func (g *Game) AnimationSteps() int {
@@ -69,10 +76,18 @@ func (g *Game) AnimationSteps() int {
 // If called again, it will reset the map and re-seed.
 func (g *Game) Init(numfish, numshark, width, height int) {
 
+	g.frames = nil
+	g.startFish = numfish
+	g.startShark = numshark
+	g.width = width
+	g.height = height
 	g.tpsPerChronon = 60
 	g.pixelsMove = 4
 	g.tpsPerFrame = 8
 
+	g.ctickCounter = 0
+	g.drawFrameCounter = 0
+	g.pause = true
 	// Set up the sprites.
 	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps()*2)
 	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps()*2)
@@ -113,8 +128,8 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
 		log.Fatal(err.Error())
 	}
-	ws := g.world.Update()
-	g.currentScreen = g.StateToFrame(ws.Current)
+	//ws := g.world.Update()
+	//g.currentScreen = g.StateToFrame(ws.Current)
 }
 
 // StateToFrame converts the positions of the Wa-tor to the set of tiles
@@ -209,6 +224,12 @@ func (g *Game) DrawFrame(screen *ebiten.Image, m []Frame) {
 	}
 }
 
+func (g *Game) ShowOptionsScreen(screen *ebiten.Image) {
+
+	msg := "<SPACE> to begin/resume.\nR to restart.\nQ to quit."
+	text.Draw(screen, msg, basicfont.Face7x13, 20, 50, color.Black)
+}
+
 // Update is called by Ebiten every 'tick' based on Ticks Per Seconds (TPS).
 // By default, Ebiten tries to run at 60 TPS so Update will be called every
 // 1/60th of a second.  TPS can be changed with the SetTPS method.
@@ -216,6 +237,16 @@ func (g *Game) Update() error {
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.pause = !g.pause
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyR) {
+		g.Init(g.startFish, g.startShark, g.width, g.height)
+		g.currentScreen = nil
+		return nil
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		os.Exit(0)
 	}
 
 	if !g.pause {
@@ -253,6 +284,9 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.Fill(color.RGBA{120, 180, 255, 255})
+	if g.pause {
+		g.ShowOptionsScreen(screen)
+	}
 	for x := 0; x < g.world.Width*TileSize; x += TileSize {
 		ebitenutil.DrawLine(screen, float64(x), 0, float64(x), float64(g.world.Height*TileSize), color.White)
 	}
