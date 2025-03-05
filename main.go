@@ -89,8 +89,8 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	g.drawFrameCounter = 0
 	g.pause = true
 	// Set up the sprites.
-	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps()*2)
-	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps()*2)
+	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps()*2+1)
+	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps()*3+1)
 
 	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
 	if err != nil {
@@ -108,6 +108,11 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 		g.sharkSprite[i+g.AnimationSteps()] = ss_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 32)).(*ebiten.Image)
 	}
 
+	// Shark eating
+	for i := 0; i < g.AnimationSteps(); i++ {
+		g.sharkSprite[i+2*g.AnimationSteps()] = ss_r.SubImage(image.Rect(i*TileSize, 32, i*TileSize+TileSize, 64)).(*ebiten.Image)
+	}
+
 	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
 	if err != nil {
 		log.Fatalln("Unable to load fish image.")
@@ -122,6 +127,20 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	for i := 0; i < g.AnimationSteps(); i++ {
 		g.fishSprite[i+g.AnimationSteps()] = fs_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
 	}
+
+	// Death Sprite Sheet - Sharks
+	sds, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Deads/Dead Large - 48x32.png")
+	if err != nil {
+		log.Fatalln("Unable to load dead sharks sprite sheet.")
+	}
+	g.sharkSprite[g.AnimationSteps()*3] = sds.SubImage(image.Rect(10, 32*3, 46, 32*4)).(*ebiten.Image)
+
+	// Death Sprite Sheet - Fish
+	fds, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Deads/Dead Small - 32x32.png")
+	if err != nil {
+		log.Fatalln("Unable to load dead sharks sprite sheet.")
+	}
+	g.fishSprite[g.AnimationSteps()*2] = fds.SubImage(image.Rect(0, 0, 32, 32)).(*ebiten.Image)
 
 	// Initialize the world.
 	g.world = wator.Wator{}
@@ -161,8 +180,9 @@ func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 		offset := float64(i * g.pixelsMove)
 		frame := make([]Frame, g.world.Height*g.world.Width)
 		for _, d := range delta {
-			x, y := g.TileCoordinate(d.From)
 
+			spriteIdx := i
+			x, y := g.TileCoordinate(d.From)
 			switch d.Action {
 			case wator.MOVE_EAST:
 				x += offset
@@ -170,18 +190,23 @@ func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 			case wator.MOVE_WEST:
 				x -= offset
 				dir = WEST
+				spriteIdx += g.AnimationSteps()
 			case wator.MOVE_NORTH:
 				y -= offset
 				dir = NORTH
 			case wator.MOVE_SOUTH:
 				y += offset
 				dir = SOUTH
+			case wator.DEATH:
+				spriteIdx = len(g.sharkSprite) - 1
+				//	case wator.ATE:
+				//			spriteIdx += g.AnimationSteps() * 2
 			default:
 				continue
 			}
 
 			frame[d.From] = Frame{
-				sprite:    i,
+				sprite:    spriteIdx,
 				tileType:  d.Object,
 				x:         x,
 				y:         y,
@@ -212,9 +237,6 @@ func (g *Game) DrawFrame(screen *ebiten.Image, m []Frame) {
 		spriteIdx := t.sprite
 		opts.GeoM.Reset()
 		opts.GeoM.Translate(t.x, t.y)
-		if t.direction == WEST {
-			spriteIdx += g.AnimationSteps()
-		}
 		switch t.tileType {
 		case wator.FISH:
 			screen.DrawImage(g.fishSprite[spriteIdx], opts)
