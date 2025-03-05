@@ -161,9 +161,10 @@ func (w *Wator) Update() WorldStates {
 		switch c := tile.(type) {
 		case *fish:
 			var f *fish
+
+			// Return fish movement and if it spawned a new fish.
 			newPos, f = w.fishTurn(c, i, adjacents)
 
-			// Fish can only move to non-occupied squares.
 			if f != nil {
 				// Put the spawn at the new position because it will
 				// then get swapped before the turn is completed and
