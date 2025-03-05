@@ -1,4 +1,4 @@
-module lazyhacker.dev/wator/v2
+module lazyhacker.dev/wator
 
 go 1.24.0
 
