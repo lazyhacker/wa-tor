@@ -46,6 +46,13 @@ const (
 	ATE               // Creature ate
 )
 
+const (
+	EAST = iota
+	WEST
+	NORTH
+	SOUTH
+)
+
 var (
 	fishSpawnRate  int
 	sharkSpawnRate int
@@ -222,6 +229,7 @@ func (w *Wator) Update() WorldStates {
 func (w *Wator) fishTurn(fish *fish, pos int, adjacents []int) (int, *fish) {
 
 	newPos := fish.move(pos, w.world, adjacents)
+	fish.direction = w.direction(pos, newPos)
 	if fish.spawn() && newPos != pos {
 		return newPos, NewFish()
 	}
@@ -238,6 +246,7 @@ func (w *Wator) sharkTurn(shark *shark, pos int, adjacents []int) (bool, int, *s
 	}
 
 	newPos := shark.move(pos, w.world, adjacents)
+	shark.direction = w.direction(pos, newPos)
 	if _, ok := w.world[newPos].(*fish); ok {
 		shark.feed()
 	}

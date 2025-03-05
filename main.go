@@ -5,6 +5,7 @@ package main // package lazyhacker.dev/wator
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -21,11 +22,23 @@ import (
 )
 
 const (
-	TileSize = 32 // pixels width/height per tile
-	EAST     = iota
-	WEST
-	NORTH
-	SOUTH
+	TileSize  = 32 // pixels width/height per tile
+	AniFrames = 8  // number of sprites for animation
+
+	// 0-7 :   animation frames going east
+	// 8-15:   animation going west
+	// 16-23:  alternative animation going east
+	// 24-31:  alternative animation going west
+	// 32:     death image
+	EastStartIdx    = 0
+	EastEndIdx      = 7
+	WestStartIdx    = 8
+	WestEndIdx      = 15
+	AltEastStartIdx = 16
+	AltEastEndIdx   = 23
+	AltWestStartIdx = 24
+	AltWestEndIdx   = 31
+	DeathSpriteIdx  = 32
 )
 
 var (
@@ -84,71 +97,99 @@ func (g *Game) Init(numfish, numshark, width, height int) {
 	g.tpsPerChronon = 60
 	g.pixelsMove = 4
 	g.tpsPerFrame = 8
-
 	g.ctickCounter = 0
 	g.drawFrameCounter = 0
 	g.pause = true
-	// Set up the sprites.
-	g.fishSprite = make([]*ebiten.Image, g.AnimationSteps()*2+1)
-	g.sharkSprite = make([]*ebiten.Image, g.AnimationSteps()*3+1)
 
-	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
-	if err != nil {
-		log.Fatalln("Unable to load shark image.")
+	if err := g.loadSprites(); err != nil {
+		log.Fatal(err)
 	}
-	for i := 0; i < g.AnimationSteps(); i++ {
-		g.sharkSprite[i] = ss.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 32)).(*ebiten.Image)
-	}
-
-	ss_r, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/SharkReverse.png")
-	if err != nil {
-		log.Fatalln("Unable to load reverse shark image.")
-	}
-	for i := 0; i < g.AnimationSteps(); i++ {
-		g.sharkSprite[i+g.AnimationSteps()] = ss_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 32)).(*ebiten.Image)
-	}
-
-	// Shark eating
-	for i := 0; i < g.AnimationSteps(); i++ {
-		g.sharkSprite[i+2*g.AnimationSteps()] = ss_r.SubImage(image.Rect(i*TileSize, 32, i*TileSize+TileSize, 64)).(*ebiten.Image)
-	}
-
-	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
-	if err != nil {
-		log.Fatalln("Unable to load fish image.")
-	}
-	for i := 0; i < g.AnimationSteps(); i++ {
-		g.fishSprite[i] = fs.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
-	}
-	fs_r, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/OrangeReverse.png")
-	if err != nil {
-		log.Fatalln("Unable to load fish image.")
-	}
-	for i := 0; i < g.AnimationSteps(); i++ {
-		g.fishSprite[i+g.AnimationSteps()] = fs_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
-	}
-
-	// Death Sprite Sheet - Sharks
-	sds, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Deads/Dead Large - 48x32.png")
-	if err != nil {
-		log.Fatalln("Unable to load dead sharks sprite sheet.")
-	}
-	g.sharkSprite[g.AnimationSteps()*3] = sds.SubImage(image.Rect(10, 32*3, 46, 32*4)).(*ebiten.Image)
-
-	// Death Sprite Sheet - Fish
-	fds, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Deads/Dead Small - 32x32.png")
-	if err != nil {
-		log.Fatalln("Unable to load dead sharks sprite sheet.")
-	}
-	g.fishSprite[g.AnimationSteps()*2] = fds.SubImage(image.Rect(0, 0, 32, 32)).(*ebiten.Image)
-
 	// Initialize the world.
 	g.world = wator.Wator{}
 	if err := g.world.Init(width, height, numfish, numshark, *fsr, *ssr, *health); err != nil {
 		log.Fatal(err.Error())
 	}
-	//ws := g.world.Update()
-	//g.currentScreen = g.StateToFrame(ws.Current)
+}
+
+func (g *Game) loadSprites() error {
+
+	// Set up the sprites.
+
+	g.fishSprite = make([]*ebiten.Image, AniFrames*4+1)
+	g.sharkSprite = make([]*ebiten.Image, AniFrames*4+1)
+
+	// Load Sprite Sheets ----------------------------
+
+	// Shark
+	ss, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/Shark.png")
+	if err != nil {
+		return fmt.Errorf("Unable to load shark image. %v", err)
+	}
+	ss_r, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Shark - 32x32/SharkReverse.png")
+	if err != nil {
+		return fmt.Errorf("Unable to load reverse shark image. %v", err)
+	}
+
+	// Fish
+	fs, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/Orange.png")
+	if err != nil {
+		return fmt.Errorf("Unable to load fish image. %v", err)
+	}
+	fs_r, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Fish3 - 32x16/OrangeReverse.png")
+	if err != nil {
+		return fmt.Errorf("Unable to load fish image. %v", err)
+	}
+
+	// Death Sprite Sheet - Sharks
+	sds, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Deads/Dead Large - 48x32.png")
+	if err != nil {
+		return fmt.Errorf("Unable to load dead sharks sprite sheet. %v", err)
+	}
+	// Death Sprite Sheet - Fish
+	fds, _, err := ebitenutil.NewImageFromFile("assets/spearfishing/Sprites/Deads/Dead Small - 32x32.png")
+	if err != nil {
+		return fmt.Errorf("Unable to load dead sharks sprite sheet. %v", err)
+	}
+
+	//  Load individual images from sprite sheets.
+
+	// Regular Shark - East
+	for i, j := EastStartIdx, 0; i <= EastEndIdx; i, j = i+1, j+1 {
+		g.sharkSprite[i] = ss.SubImage(image.Rect(j*TileSize, 0, j*TileSize+TileSize, 32)).(*ebiten.Image)
+	}
+
+	// Regular Shark - West
+	for i, j := WestStartIdx, 0; i <= WestEndIdx; i, j = i+1, j+1 {
+		g.sharkSprite[i] = ss_r.SubImage(image.Rect(j*TileSize, 0, j*TileSize+TileSize, 32)).(*ebiten.Image)
+	}
+
+	// Shark eating (facing East)
+	for i, j := AltEastStartIdx, 0; i < AltEastEndIdx; i, j = i+1, j+1 {
+		g.sharkSprite[i] = ss.SubImage(image.Rect(j*TileSize, 32, j*TileSize+TileSize, 64)).(*ebiten.Image)
+	}
+
+	// Shark eating (facing west)
+	for i, j := AltWestStartIdx, 0; i <= AltWestEndIdx; i, j = i+1, j+1 {
+		g.sharkSprite[i] = ss_r.SubImage(image.Rect(j*TileSize, 32, j*TileSize+TileSize, 64)).(*ebiten.Image)
+
+	}
+
+	// Shark Death
+	g.sharkSprite[DeathSpriteIdx] = sds.SubImage(image.Rect(10, 32*3, 46, 32*4)).(*ebiten.Image)
+
+	// Regular Fish - East
+	for i, j := EastStartIdx, 0; i <= EastEndIdx; i, j = i+1, j+1 {
+		g.fishSprite[i] = fs.SubImage(image.Rect(j*TileSize, 0, j*TileSize+TileSize, 16)).(*ebiten.Image)
+	}
+	// Regular Fish - West
+	for i := 0; i < AniFrames; i++ {
+		g.fishSprite[i+AniFrames] = fs_r.SubImage(image.Rect(i*TileSize, 0, i*TileSize+TileSize, 16)).(*ebiten.Image)
+	}
+
+	// Fish Deaith
+	g.fishSprite[DeathSpriteIdx] = fds.SubImage(image.Rect(0, 0, 32, 32)).(*ebiten.Image)
+
+	return nil
 }
 
 // StateToFrame converts the positions of the Wa-tor to the set of tiles
@@ -173,7 +214,6 @@ func (g *Game) StateToFrame(w wator.WorldState) []Frame {
 // tiles.
 func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 
-	var dir int
 	steps := g.AnimationSteps()
 	var frames [][]Frame
 	for i := 0; i < steps; i++ {
@@ -186,17 +226,13 @@ func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 			switch d.Action {
 			case wator.MOVE_EAST:
 				x += offset
-				dir = EAST
 			case wator.MOVE_WEST:
 				x -= offset
-				dir = WEST
 				spriteIdx += g.AnimationSteps()
 			case wator.MOVE_NORTH:
 				y -= offset
-				dir = NORTH
 			case wator.MOVE_SOUTH:
 				y += offset
-				dir = SOUTH
 			case wator.DEATH:
 				spriteIdx = len(g.sharkSprite) - 1
 				//	case wator.ATE:
@@ -206,11 +242,10 @@ func (g *Game) DeltaToFrames(delta []wator.Delta) [][]Frame {
 			}
 
 			frame[d.From] = Frame{
-				sprite:    spriteIdx,
-				tileType:  d.Object,
-				x:         x,
-				y:         y,
-				direction: dir,
+				sprite:   spriteIdx,
+				tileType: d.Object,
+				x:        x,
+				y:        y,
 			}
 		}
 		frames = append(frames, frame)

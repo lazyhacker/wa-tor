@@ -5,8 +5,9 @@ import (
 )
 
 type creature struct {
-	chronon int  // age of the creature.
-	turn    uint // the chronon when it last moved.
+	chronon   int  // age of the creature.
+	turn      uint // the chronon when it last moved.
+	direction int  // direction creature is facing
 }
 
 func (c *creature) setAge(a int) {
@@ -24,6 +25,10 @@ func (c *creature) lastMove() uint {
 func (c *creature) setLastMove(t uint) {
 
 	c.turn = t
+}
+
+func (c *creature) facing() int {
+	return c.direction
 }
 
 // shark is the predetor on Wa-tor and feeds off fish.
