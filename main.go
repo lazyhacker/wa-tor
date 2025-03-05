@@ -30,10 +30,10 @@ const (
 
 var (
 	startFish   = flag.Int("fish", 50, "Initial # of fish.")
-	startSharks = flag.Int("sharks", 20, "Initial # of sharks.")
-	fsr         = flag.Int("fish-spawn-rate", 30, "fish spawn rate")
+	startSharks = flag.Int("sharks", 10, "Initial # of sharks.")
+	fsr         = flag.Int("fish-spawn-rate", 15, "fish spawn rate")
 	ssr         = flag.Int("shark-spawn-rate", 50, "shark spawn rate")
-	health      = flag.Int("health", 30, "# of cycles shark can go with feeding before dying.")
+	health      = flag.Int("health", 20, "# of cycles shark can go with feeding before dying.")
 	width       = flag.Int("width", 16, "number of tiles horizontally (cols)")
 	height      = flag.Int("height", 12, "number of tiles verticals (rows)")
 )
